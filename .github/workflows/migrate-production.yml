@@ -1,0 +1,43 @@
+name: Migraties naar productie
+
+# Applies the migrations in packages/database/supabase/migrations to production.
+# Manual only: the owner starts it in GitHub > Actions > "Migraties naar productie" > Run workflow.
+# Migrations only add; destructive changes go through expand-migrate-contract (spec §12).
+# seed.sql (fictitious test data) is never applied to production.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Typ "productie" om te bevestigen'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'productie'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @bk/database
+      - name: Openstaande migraties tonen
+        working-directory: packages/database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: pnpm exec supabase migration list --db-url "$SUPABASE_DB_URL"
+      - name: Migraties toepassen (zonder seed)
+        working-directory: packages/database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: pnpm exec supabase db push --db-url "$SUPABASE_DB_URL" --yes
