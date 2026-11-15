@@ -26,7 +26,11 @@ mkdir -p "${DIR}"
 echo "Back-up maken: rollen, schema en data…"
 ${SB} db dump --db-url "${SUPABASE_DB_URL}" --role-only -f "${DIR}/roles.sql"
 ${SB} db dump --db-url "${SUPABASE_DB_URL}" -f "${DIR}/schema.sql"
-${SB} db dump --db-url "${SUPABASE_DB_URL}" --data-only --use-copy -f "${DIR}/data.sql"
+# Data of our own schema plus Auth users (migration history: see migrations.json). Supabase-managed
+# schemas such as storage are left out: the app stores no files, and their table layout
+# changes with Supabase platform versions, which breaks restoring into another version.
+${SB} db dump --db-url "${SUPABASE_DB_URL}" --data-only --use-copy \
+  -s public,auth -f "${DIR}/data.sql"
 
 # Exact row counts per table, so a restore can be verified (numbers only, no personal content).
 psql "${SUPABASE_DB_URL}" -At -v ON_ERROR_STOP=1 -c "

@@ -14,4 +14,6 @@ destructief.
      -f scripts/restore-pre.sql -f schema.sql \
      -c "set session_replication_role = replica" -f data.sql
    ```
-5. Zet in Vercel de URL en publishable key op het nieuwe project, deploy opnieuw, log in en controleer.
+5. Markeer de migraties als toegepast (versies staan in `migrations.json`):
+   `supabase migration repair --db-url "$NIEUWE_DB_URL" --status applied <versie> …`
+6. Zet in Vercel de URL en publishable key op het nieuwe project, deploy opnieuw, log in en controleer.
