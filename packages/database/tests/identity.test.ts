@@ -151,3 +151,28 @@ describe("preference constraints", () => {
     expect(code).toBe(PG.foreignKeyViolation);
   });
 });
+
+describe("backfill for users created before the trigger existed", () => {
+  it("creates missing profile and preferences, and is safe to run twice", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync(
+      new URL("../supabase/migrations/20261115000004_backfill_profiles.sql", import.meta.url),
+      "utf8",
+    );
+    await db.query("begin");
+    try {
+      // simulate an account that predates the trigger
+      await db.query("delete from public.profiles where user_id = $1", [bob]);
+      expect((await db.query("select 1 from public.user_preferences where user_id = $1", [bob])).rowCount).toBe(0);
+      await db.query(sql);
+      await db.query(sql);
+      const r = await db.query(
+        "select p.user_id, up.theme from public.profiles p join public.user_preferences up using (user_id) where p.user_id = $1",
+        [bob],
+      );
+      expect(r.rows).toEqual([{ user_id: bob, theme: "system" }]);
+    } finally {
+      await db.query("rollback");
+    }
+  });
+});
