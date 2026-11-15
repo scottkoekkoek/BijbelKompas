@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+*.dump
+*.dump.age
+.supabase/
+packages/database/supabase/.branches/
+packages/database/supabase/.temp/
+next-env.d.ts
+*.tsbuildinfo
