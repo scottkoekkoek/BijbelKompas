@@ -1,0 +1,23 @@
+{
+  "name": "bijbelkompas",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @bk/web dev",
+    "build": "pnpm --filter @bk/web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:start": "pnpm --filter @bk/database exec supabase start",
+    "db:stop": "pnpm --filter @bk/database exec supabase stop",
+    "db:reset": "pnpm --filter @bk/database exec supabase db reset",
+    "test:db": "pnpm --filter @bk/database test:db",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.63.0",
+    "typescript": "5.9.3"
+  }
+}

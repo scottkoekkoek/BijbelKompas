@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types en unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  database-and-e2e:
+    name: Database (RLS) en end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Local Supabase stack only. These are the CLI's public demo values, not secrets.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lokale Supabase starten (migraties + fictieve seed)
+        run: pnpm db:start
+      - name: Database- en RLS-tests
+        run: pnpm test:db
+      - name: App bouwen
+        run: pnpm build
+      - name: Playwright-browser installeren
+        run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end- en toegankelijkheidstests
+        run: pnpm test:e2e
+      - name: Back-up en herstelproef op de lokale stack
+        run: |
+          OUT_DIR=$RUNNER_TEMP/backup NO_ENCRYPT=1 \
+            SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres scripts/backup.sh
+          pnpm db:stop
+          scripts/restore-drill.sh "$(ls -d $RUNNER_TEMP/backup/bijbelkompas-*)"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

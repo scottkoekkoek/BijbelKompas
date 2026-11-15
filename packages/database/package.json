@@ -1,0 +1,20 @@
+{
+  "name": "@bk/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'database tests: run pnpm test:db with the local Supabase stack running'",
+    "test:db": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
+    "supabase": "2.122.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

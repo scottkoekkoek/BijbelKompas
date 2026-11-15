@@ -1,0 +1,10 @@
+{
+  "name": "BijbelKompas",
+  "short_name": "BijbelKompas",
+  "lang": "nl",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F7F3EB",
+  "theme_color": "#355D53",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

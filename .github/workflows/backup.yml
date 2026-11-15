@@ -1,0 +1,39 @@
+name: Back-up productie
+
+# BK-007. Twice a week, encrypted with the owner's age public key. Kept 90 days as a
+# GitHub artifact. The private key never leaves the owner's password manager.
+# Side effect: this touches the database regularly, which helps against the free-plan pause,
+# but Supabase does not guarantee that.
+on:
+  schedule:
+    - cron: "17 3 * * 1,4" # Monday and Thursday 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @bk/database
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client
+      - name: Back-up maken en versleutelen
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          OUT_DIR: ${{ runner.temp }}/backup
+        run: scripts/backup.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bijbelkompas-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/backup/*.age
+          retention-days: 90
+          if-no-files-found: error
