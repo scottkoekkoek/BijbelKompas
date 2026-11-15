@@ -9,8 +9,9 @@ destructief.
 3. Proef eerst lokaal: `pnpm db:stop && scripts/restore-drill.sh bijbelkompas-<datum>`.
 4. Terugzetten in een **nieuw, leeg** Supabase-project (nooit over bestaande data heen):
    ```bash
+   psql "$NIEUWE_DB_URL" -f roles.sql   # meldingen "permission denied for parameter" mag je negeren
    psql "$NIEUWE_DB_URL" -v ON_ERROR_STOP=1 --single-transaction \
-     -f roles.sql -f scripts/restore-pre.sql -f schema.sql \
+     -f scripts/restore-pre.sql -f schema.sql \
      -c "set session_replication_role = replica" -f data.sql
    ```
 5. Zet in Vercel de URL en publishable key op het nieuwe project, deploy opnieuw, log in en controleer.
