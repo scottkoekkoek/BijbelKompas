@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isPublicPath } from "@/lib/routes";
+import { DATABASE_UNREACHABLE, MISSING_CONFIG } from "@/lib/status-page";
 
 /**
  * BK-003: refreshes the Supabase session cookie on every request and sends
@@ -10,7 +11,12 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return response;
+  if (!url || !key) {
+    // Without configuration nothing behind the login can work: say so clearly (no secrets shown).
+    console.error(JSON.stringify({ level: "error", route: "proxy", code: "CONFIG_MISSING" }));
+    if (isPublicPath(request.nextUrl.pathname)) return response;
+    return MISSING_CONFIG();
+  }
 
   const supabase = createServerClient(url, key, {
     cookies: {
@@ -26,8 +32,21 @@ export async function proxy(request: NextRequest) {
   });
 
   // getClaims() verifies the JWT; never trust an unverified session cookie.
-  const { data } = await supabase.auth.getClaims();
-  const signedIn = Boolean(data?.claims?.sub);
+  let signedIn = false;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    signedIn = Boolean(data?.claims?.sub);
+  } catch {
+    // Supabase unreachable (e.g. free project paused): explain instead of a generic 500.
+    console.error(JSON.stringify({ level: "error", route: "proxy", code: "DATABASE_UNREACHABLE" }));
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return Response.json(
+        { error: { code: "INTERNAL", message: "Database niet bereikbaar.", requestId: crypto.randomUUID() } },
+        { status: 503 },
+      );
+    }
+    return DATABASE_UNREACHABLE();
+  }
   const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) return response;
