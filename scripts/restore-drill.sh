@@ -23,8 +23,17 @@ sed -i 's/^project_id = .*/project_id = "restore-drill"/' supabase/config.toml
 "${SUPABASE}" start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit >/dev/null
 
 echo "2/4 Back-up terugzetten…"
+# roles.sql from a hosted project can hold role settings (e.g. log_min_messages) that only
+# Supabase's own superuser may set. Those are platform settings, not our data: skip them
+# with a warning. Any OTHER error in roles.sql still stops the drill.
+roles_log="$(mktemp)"
+psql "${DB_URL}" -q -f "${BACKUP}/roles.sql" 2>"${roles_log}" >/dev/null || true
+if grep "ERROR" "${roles_log}" | grep -vq "permission denied for parameter"; then
+  cat "${roles_log}" >&2; echo "Fout in roles.sql" >&2; exit 1
+fi
+grep "permission denied for parameter" "${roles_log}" | sed 's/^.*ERROR:/  overgeslagen (platforminstelling):/' || true
+
 psql "${DB_URL}" -q -v ON_ERROR_STOP=1 --single-transaction \
-  -f "${BACKUP}/roles.sql" \
   -f "${ROOT}/scripts/restore-pre.sql" \
   -f "${BACKUP}/schema.sql" \
   -c "set session_replication_role = replica" \
