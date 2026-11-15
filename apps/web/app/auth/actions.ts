@@ -20,6 +20,8 @@ export async function signIn(_prev: FormState, formData: FormData): Promise<Form
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
+    // Log only the reason code (never the e-mail address), so the real cause shows in Vercel's logs.
+    console.warn(JSON.stringify({ event: "SIGN_IN_FAILED", code: error.code ?? null, status: error.status ?? null }));
     if (error.status === 429) return { error: "Te veel pogingen. Probeer het over een paar minuten opnieuw." };
     return { error: "E-mailadres of wachtwoord klopt niet." };
   }
