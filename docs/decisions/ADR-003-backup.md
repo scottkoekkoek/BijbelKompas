@@ -10,3 +10,9 @@ Status: aanvaard (Sprint 1). RPO ≈ 3–4 dagen, RTO ≈ 1 uur (handmatig).
   data) en maandelijks tegen een verse dump van productie.
 - Gevonden bij de eerste proef: een verse Supabase-database geeft nieuwe tabellen standaard aan
   `anon`; de dump herhaalt alleen GRANTs. `scripts/restore-pre.sql` voorkomt dat.
+- Data-dump beperkt tot `public` en `auth` (migratiehistorie staat in `migrations.json`). Het `storage`-schema valt erbuiten:
+  de app slaat (nog) geen bestanden op, en de tabelindeling van dat schema verschilt per
+  Supabase-versie, waardoor terugzetten mislukte (`storage.bucket_lifecycle_states`). Opnieuw
+  bekijken zodra de app bestanden gaat opslaan.
+- Rolinstellingen die alleen Supabase zelf mag zetten (bijv. `log_min_messages`) worden bij
+  terugzetten overgeslagen.
