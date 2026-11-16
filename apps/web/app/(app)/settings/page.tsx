@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ImportExport } from "@/components/settings/ImportExport";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fromRow, PREFERENCE_COLUMNS, type PreferencesRow } from "@/lib/preferences";
@@ -27,12 +28,21 @@ export default async function SettingsPage() {
       <section className="settings-section" aria-labelledby="export-heading">
         <h2 id="export-heading">Je gegevens exporteren</h2>
         <p className="page-intro">
-          Download al je notities, Bijbelkoppelingen, versies, sjablonen en voorkeuren in één zip-bestand: een volledig
+          Download al je notities, Bijbelkoppelingen, versies, collecties, vragen, sjablonen en voorkeuren in één zip-bestand: een volledig
           JSON-bestand en elke notitie als leesbaar Markdown-bestand. Bewaar het op een veilige plek.
         </p>
         <a className="button secondary" href="/api/v1/export" download>
           Alles exporteren
         </a>
+      </section>
+
+      <section className="settings-section" aria-labelledby="import-heading">
+        <h2 id="import-heading">Export terugzetten</h2>
+        <p className="page-intro">
+          Zet een eerdere export terug, bijvoorbeeld na een verhuizing naar een nieuw account. Er wordt alleen
+          toegevoegd: wat al in je account staat, blijft precies zoals het is.
+        </p>
+        <ImportExport />
       </section>
 
       <section className="settings-section" aria-labelledby="offline-heading">

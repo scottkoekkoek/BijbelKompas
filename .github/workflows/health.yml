@@ -1,0 +1,35 @@
+name: Controle productie
+
+# BK-059: checks twice a day that production answers and reaches Supabase. A failed run makes
+# GitHub send the owner an e-mail. Reads only /api/v1/health, which holds no personal data.
+# Needs the repository variable PRODUCTIE_URL (e.g. https://bijbelkompas.vercel.app); without it
+# the check says so and stops. Costs about 1 Actions minute per run.
+on:
+  schedule:
+    - cron: "23 6,18 * * *" # 06:23 and 18:23 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Productie bevragen
+        env:
+          URL: ${{ vars.PRODUCTIE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::Variabele PRODUCTIE_URL ontbreekt (Settings > Secrets and variables > Actions > Variables)."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            body=$(curl -sS --max-time 20 -w '\n%{http_code}' "${URL%/}/api/v1/health" || true)
+            code=$(echo "$body" | tail -n1)
+            echo "Poging $attempt: HTTP $code $(echo "$body" | head -n1)"
+            [ "$code" = "200" ] && exit 0
+            sleep 30
+          done
+          echo "::error::BijbelKompas antwoordt niet goed. Zie docs/runbooks/productie.md."
+          exit 1
