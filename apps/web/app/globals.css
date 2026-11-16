@@ -292,3 +292,63 @@ input[type="date"] { width: 100%; }
 .chapter-notes { margin-top: 24px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .chapter-notes h2 { font-size: 1.05rem; margin: 0 0 8px; }
 .chapter-notes ul { margin: 0; padding-left: 20px; }
+
+/* ---------- Sprint 4: sermon fields, templates, search ---------- */
+textarea {
+  font: inherit; color: var(--text); background: var(--bg); width: 100%;
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; resize: vertical;
+}
+textarea:focus-visible { border-color: var(--primary); }
+input[type="search"] {
+  font: inherit; color: var(--text); background: var(--bg); width: 100%;
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-height: 44px;
+}
+.muted { color: var(--muted); }
+fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px 4px; margin: 0 0 16px; min-width: 0; }
+legend { font-weight: 600; padding: 0 6px; }
+
+.sermon-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
+.sermon-fields .field { margin-bottom: 12px; }
+@media (max-width: 900px) { .sermon-fields { grid-template-columns: 1fr 1fr; } }
+
+
+@keyframes found {
+  0%, 60% { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
+  100% { background: transparent; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) { .note-body [data-block-id] { animation: none !important; } }
+
+.template-grid { list-style: none; padding: 0; margin: 16px 0 20px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.template-card {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.template-card h2, .template-card h3 { margin: 0; font-size: 1.1rem; }
+.template-card p { margin: 0 0 4px; flex: 1; }
+
+.part-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; counter-reset: part; }
+.part-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 8px; align-items: center; }
+.part-kind { font-weight: 600; font-size: 0.95rem; }
+.part-kind::before { counter-increment: part; content: counter(part) ". "; color: var(--muted); }
+.part-actions { display: flex; gap: 4px; }
+.part-actions .tool[disabled] { opacity: 0.4; cursor: default; }
+.part-add { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.part-add select { width: auto; flex: 0 1 220px; }
+@media (max-width: 600px) {
+  .part-row { grid-template-columns: 1fr auto; }
+  .part-row input { grid-column: 1 / -1; grid-row: 2; }
+}
+
+.search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-bar input { flex: 1; }
+.search-filters { margin-bottom: 20px; }
+.search-filters summary { cursor: pointer; color: var(--primary); font-weight: 600; min-height: 32px; }
+.search-filters .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 720px) { .search-filters .filters { grid-template-columns: 1fr 1fr; } }
+.count { color: var(--muted); font-weight: 400; font-size: 0.9em; }
+mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.snippet { color: var(--text); font-size: 0.95rem; }
+.verse-results { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.verse-results a { font-weight: 600; white-space: nowrap; }
+.verse-snippet { font-family: var(--font-bible); }
+.verse:target { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; }

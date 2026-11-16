@@ -14,7 +14,7 @@ test("login page has no serious accessibility problems", async ({ page }) => {
   await expectNoSeriousViolations(page);
 });
 
-for (const path of ["/dashboard", "/settings", "/bible", "/bible/GEN", "/bible/GEN/1", "/notes"]) {
+for (const path of ["/dashboard", "/settings", "/bible", "/bible/GEN", "/bible/GEN/1", "/notes", "/notes/new", "/templates", "/templates/new", "/search?q=fictieve"]) {
   test(`${path} has no serious accessibility problems`, async ({ page }) => {
     await login(page, path);
     await expectNoSeriousViolations(page);
@@ -63,7 +63,8 @@ test("pages never scroll sideways", async ({ page }) => {
 
 test("the note editor has no serious accessibility problems", async ({ page }) => {
   await login(page, "/notes");
-  await page.locator(".page-head").getByRole("button", { name: "Nieuwe notitie" }).click();
+  await page.locator(".page-head").getByRole("link", { name: "Nieuwe notitie" }).click();
+  await page.getByRole("button", { name: "Lege notitie" }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await expect(page.locator(".note-body[contenteditable='true']")).toBeVisible();
   await expectNoSeriousViolations(page);

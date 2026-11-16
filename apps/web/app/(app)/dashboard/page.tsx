@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { readerPath } from "@/lib/bible";
 import { getReadingPosition } from "@/lib/bible-data";
-import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { listNotes } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -47,7 +46,9 @@ export default async function DashboardPage() {
           </ul>
         )}
         <p className="button-row">
-          <NewNoteButton />
+          <Link className="button" href="/notes/new">
+            Nieuwe notitie
+          </Link>
           <Link className="button secondary" href="/notes">
             Alle notities
           </Link>

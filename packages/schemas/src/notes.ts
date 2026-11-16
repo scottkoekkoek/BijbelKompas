@@ -59,7 +59,21 @@ export const NoteSummary = z.object({
 });
 export type NoteSummary = z.infer<typeof NoteSummary>;
 
-export const Note = NoteSummary.extend({ document: NoteDocument });
+/** BK-019: sermon metadata, stored by name (names are reused case-insensitively). */
+const shortText = (max: number) => z.string().trim().max(max).nullable();
+export const SermonDetails = z
+  .object({
+    speaker: shortText(120),
+    organization: shortText(120),
+    series: shortText(120),
+    serviceType: shortText(60),
+  })
+  .strict();
+export type SermonDetails = z.infer<typeof SermonDetails>;
+export const EMPTY_SERMON: SermonDetails = { speaker: null, organization: null, series: null, serviceType: null };
+export const SERVICE_TYPE_SUGGESTIONS = ["Ochtenddienst", "Middagdienst", "Avonddienst", "Doordeweekse dienst"];
+
+export const Note = NoteSummary.extend({ document: NoteDocument, sermon: SermonDetails });
 export type Note = z.infer<typeof Note>;
 
 export const CreateNoteInput = z
@@ -71,6 +85,8 @@ export const CreateNoteInput = z
     reference: PassageRef.optional(),
     /** start from an existing document (conflict copy) */
     document: NoteDocument.optional(),
+    /** start from a template: an own template id or a built-in key such as "ingebouwd:preek" */
+    template: z.union([z.uuid(), z.string().regex(/^ingebouwd:[a-z]{1,30}$/)]).optional(),
   })
   .strict();
 export type CreateNoteInput = z.infer<typeof CreateNoteInput>;
@@ -84,6 +100,7 @@ export const SaveNoteInput = z
     document: NoteDocument,
     reason: RevisionReason.exclude(["herstel"]).optional(),
     status: NoteStatus.optional(),
+    sermon: SermonDetails.optional(),
   })
   .strict();
 export type SaveNoteInput = z.infer<typeof SaveNoteInput>;
@@ -96,3 +113,38 @@ export const RevisionSummary = z.object({
   createdAt: z.string(),
 });
 export type RevisionSummary = z.infer<typeof RevisionSummary>;
+
+/** BK-020: own templates. A template is only a starting structure for new notes. */
+export const TemplatePartKind = z.enum(["kop", "alinea", "citaat", "bijbelverwijzing", "vraag", "toepassing", "gebed"]);
+export type TemplatePartKind = z.infer<typeof TemplatePartKind>;
+export const TEMPLATE_PART_LABELS: Record<TemplatePartKind, string> = {
+  kop: "Kop",
+  alinea: "Alinea",
+  citaat: "Citaat",
+  bijbelverwijzing: "Bijbelverwijzing",
+  vraag: "Vraag",
+  toepassing: "Toepassing",
+  gebed: "Gebed",
+};
+export const TemplatePart = z.object({ kind: TemplatePartKind, text: z.string().max(500) }).strict();
+export type TemplatePart = z.infer<typeof TemplatePart>;
+
+export const TemplateInput = z
+  .object({
+    name: z.string().trim().min(1, "Geef het sjabloon een naam").max(100),
+    noteType: NoteType,
+    description: z.string().trim().max(500),
+    parts: z.array(TemplatePart).min(1, "Voeg minstens één onderdeel toe").max(50),
+  })
+  .strict();
+export type TemplateInput = z.infer<typeof TemplateInput>;
+export const TemplateUpdate = TemplateInput.partial().extend({ archived: z.boolean().optional() }).strict();
+export type TemplateUpdate = z.infer<typeof TemplateUpdate>;
+
+export const NoteTemplate = TemplateInput.extend({
+  id: z.string(),
+  builtIn: z.boolean(),
+  version: z.number().int(),
+  archived: z.boolean(),
+});
+export type NoteTemplate = z.infer<typeof NoteTemplate>;

@@ -2,7 +2,7 @@
 import { CreateNoteInput, NoteStatus, NoteType } from "@bk/schemas";
 import { z } from "zod";
 import { authenticated, errorResponse, json, logError, newRequestId } from "@/lib/api";
-import { getBooks } from "@/lib/bible-data";
+import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { createNote, listNotes } from "@/lib/notes/data";
 
 export const dynamic = "force-dynamic";
@@ -42,8 +42,12 @@ export async function POST(request: Request) {
   const parsed = CreateNoteInput.safeParse(raw);
   if (!parsed.success) return errorResponse("INVALID_INPUT", "Ongeldige notitie.", requestId, z.flattenError(parsed.error));
   try {
-    const books = await getBooks(auth.supabase);
-    const result = await createNote(auth.supabase, parsed.data, (code) => books.find((b) => b.code === code)?.name ?? null);
+    const [books, translations] = await Promise.all([getBooks(auth.supabase), getTranslations(auth.supabase)]);
+    const translation = pickTranslation(translations, undefined, null)?.code ?? "SV";
+    const result = await createNote(auth.supabase, parsed.data, {
+      books: books.map((b) => ({ code: b.code, name: b.name, chapterCount: b.chapterCount })),
+      translation,
+    });
     if (!result.ok) return errorResponse("INVALID_INPUT", result.message, requestId, result.details);
     return json(result.note, requestId, 201);
   } catch (err) {

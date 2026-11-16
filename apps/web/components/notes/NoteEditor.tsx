@@ -1,5 +1,13 @@
 "use client";
-import { NOTE_TYPE_LABELS, NoteType, type Note, type NoteStatus, type RevisionReason } from "@bk/schemas";
+import {
+  NOTE_TYPE_LABELS,
+  NoteType,
+  SERVICE_TYPE_SUGGESTIONS,
+  type Note,
+  type NoteStatus,
+  type RevisionReason,
+  type SermonDetails,
+} from "@bk/schemas";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,14 +31,16 @@ const STATE_TEXT: Record<SaveState, string> = {
   conflict: "Niet opgeslagen: conflict.",
 };
 
-type Props = { note: Note; books: BookInfo[]; defaultTranslation: string };
+export type Suggestions = { speakers: string[]; organizations: string[]; series: string[] };
+type Props = { note: Note; books: BookInfo[]; defaultTranslation: string; suggestions: Suggestions };
 
-export function NoteEditor({ note, books, defaultTranslation }: Props) {
+export function NoteEditor({ note, books, defaultTranslation, suggestions }: Props) {
   const router = useRouter();
   const ids = useId();
   const [title, setTitle] = useState(note.title);
   const [noteType, setNoteType] = useState<NoteType>(note.noteType);
   const [eventDate, setEventDate] = useState(note.eventDate ?? "");
+  const [sermon, setSermon] = useState<SermonDetails>(note.sermon);
   const [status, setStatus] = useState<NoteStatus>(note.status);
   const [saveState, setSaveState] = useState<SaveState>("opgeslagen");
   const [message, setMessage] = useState("");
@@ -47,10 +57,10 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pauseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const retryTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const meta = useRef({ title, noteType, eventDate });
+  const meta = useRef({ title, noteType, eventDate, sermon });
   useEffect(() => {
-    meta.current = { title, noteType, eventDate };
-  }, [title, noteType, eventDate]);
+    meta.current = { title, noteType, eventDate, sermon };
+  }, [title, noteType, eventDate, sermon]);
   const editorRef = useRef<Editor | null>(null);
   const saveRef = useRef<(opts?: SaveOpts) => Promise<void>>(async () => undefined);
 
@@ -82,6 +92,25 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
     editorRef.current = editor;
   }, [editor]);
 
+  // BK-038: a search result links to /notes/{id}#blok-{blockId}; scroll to that block and mark it.
+  // The mark is a style rule rather than a class, because the editor may redraw the block.
+  const [foundBlock, setFoundBlock] = useState<string | null>(null);
+  useEffect(() => {
+    if (!editor) return;
+    const m = /^#blok-([0-9a-f-]{36})$/.exec(window.location.hash);
+    if (!m) return;
+    const id = m[1]!;
+    const t1 = setTimeout(() => {
+      editor.view.dom.querySelector<HTMLElement>(`[data-block-id="${id}"]`)?.scrollIntoView({ block: "center" });
+      setFoundBlock(id);
+    }, 50);
+    const t2 = setTimeout(() => setFoundBlock(null), 6000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [editor]);
+
   const save = useCallback(
     async (opts: SaveOpts = {}) => {
       const ed = editorRef.current;
@@ -104,6 +133,7 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
             title: meta.current.title,
             noteType: meta.current.noteType,
             eventDate: meta.current.eventDate || null,
+            sermon: meta.current.sermon,
             document: ed.getJSON(),
             ...opts,
           }),
@@ -166,7 +196,7 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
       return;
     }
     markChanged();
-  }, [title, noteType, eventDate, markChanged]);
+  }, [title, noteType, eventDate, sermon, markChanged]);
 
   // Warn before leaving with unsaved text; save when the tab is hidden.
   useEffect(() => {
@@ -232,6 +262,20 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
         </div>
       </div>
 
+      {noteType === "preek" && (
+        <fieldset className="sermon-fields">
+          <legend>Preekgegevens</legend>
+          <SermonField id={`${ids}-speaker`} label="Spreker" value={sermon.speaker} options={suggestions.speakers} max={120}
+            onChange={(v) => setSermon((s) => ({ ...s, speaker: v }))} />
+          <SermonField id={`${ids}-org`} label="Kerk of gemeente" value={sermon.organization} options={suggestions.organizations} max={120}
+            onChange={(v) => setSermon((s) => ({ ...s, organization: v }))} />
+          <SermonField id={`${ids}-series`} label="Serie" value={sermon.series} options={suggestions.series} max={120}
+            onChange={(v) => setSermon((s) => ({ ...s, series: v }))} />
+          <SermonField id={`${ids}-service`} label="Dienst" value={sermon.serviceType} options={SERVICE_TYPE_SUGGESTIONS} max={60}
+            onChange={(v) => setSermon((s) => ({ ...s, serviceType: v }))} />
+        </fieldset>
+      )}
+
       <div className="note-status-row">
         <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
         <span className={`save-state ${saveState}`} role="status" aria-live="polite">
@@ -261,6 +305,9 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
         </div>
       )}
 
+      {foundBlock && (
+        <style>{`.note-body [data-block-id="${foundBlock}"] { animation: found 6s ease-out; border-radius: 4px; }`}</style>
+      )}
       {editor && <Toolbar editor={editor} books={books} defaultTranslation={defaultTranslation} />}
       <EditorContent editor={editor} className="note-content" />
 
@@ -279,6 +326,28 @@ export function NoteEditor({ note, books, defaultTranslation }: Props) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function SermonField(props: { id: string; label: string; value: string | null; options: string[]; max: number; onChange: (v: string | null) => void }) {
+  return (
+    <div className="field">
+      <label htmlFor={props.id}>{props.label}</label>
+      <input
+        id={props.id}
+        type="text"
+        list={`${props.id}-list`}
+        maxLength={props.max}
+        value={props.value ?? ""}
+        onChange={(e) => props.onChange(e.target.value === "" ? null : e.target.value)}
+        autoComplete="off"
+      />
+      <datalist id={`${props.id}-list`}>
+        {props.options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
     </div>
   );
 }

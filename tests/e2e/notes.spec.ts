@@ -8,7 +8,8 @@ const saveState = (page: Page) => page.locator(".save-state");
 
 async function newNote(page: Page, title: string) {
   await login(page, "/notes");
-  await page.locator(".page-head").getByRole("button", { name: "Nieuwe notitie" }).click();
+  await page.locator(".page-head").getByRole("link", { name: "Nieuwe notitie" }).click();
+  await page.getByRole("button", { name: "Lege notitie" }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await page.getByLabel("Titel").fill(title);
   await expect(saveState(page)).toHaveText("Opgeslagen");
