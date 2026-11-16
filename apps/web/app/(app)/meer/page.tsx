@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { signOut } from "@/app/auth/actions";
+import { LogoutButton } from "@/components/sync/LogoutButton";
 
 export const metadata: Metadata = { title: "Meer" };
 
@@ -11,10 +11,11 @@ export default function MorePage() {
       <ul className="nav-list">
         <li><Link className="nav-link" href="/templates">Sjablonen</Link></li>
         <li><Link className="nav-link" href="/settings">Instellingen</Link></li>
+        <li><Link className="nav-link" href="/sync">Offline en synchronisatie</Link></li>
       </ul>
-      <form action={signOut} style={{ marginTop: 24 }}>
-        <button type="submit" className="button secondary">Uitloggen</button>
-      </form>
+      <div style={{ marginTop: 24 }}>
+        <LogoutButton />
+      </div>
     </>
   );
 }

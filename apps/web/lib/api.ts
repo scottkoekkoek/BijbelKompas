@@ -11,12 +11,13 @@ export function newRequestId(): string {
 export function errorResponse(code: ErrorCode, message: string, requestId: string, details?: unknown) {
   return NextResponse.json(apiError(code, message, requestId, details), {
     status: ERROR_STATUS[code],
-    headers: { "x-request-id": requestId },
+    headers: { "x-request-id": requestId, "cache-control": "no-store" },
   });
 }
 
 export function json<T>(body: T, requestId: string, status = 200) {
-  return NextResponse.json(body, { status, headers: { "x-request-id": requestId } });
+  // Everything behind the API is private: never let a browser or proxy cache store it.
+  return NextResponse.json(body, { status, headers: { "x-request-id": requestId, "cache-control": "no-store" } });
 }
 
 /** Returns a Supabase client bound to the verified user, or null when not signed in. */

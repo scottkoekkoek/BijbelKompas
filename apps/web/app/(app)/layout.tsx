@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { signOut } from "@/app/auth/actions";
 import { CompassIcon } from "@/components/icons";
 import { BottomNav, SidebarNav } from "@/components/Nav";
 import { ThemeSync } from "@/components/ThemeSync";
+import { LogoutButton } from "@/components/sync/LogoutButton";
+import { SyncIndicator, SyncStarter } from "@/components/sync/SyncStatus";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      <SyncStarter />
       <ThemeSync theme={prefs?.theme ?? "system"} bibleFontSize={prefs?.bible_font_size ?? 18} />
       <a href="#inhoud" className="skip-link">Naar de inhoud</a>
       <div className="shell">
@@ -29,12 +31,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <SidebarNav />
           <div className="sidebar-footer">
-            <form action={signOut}>
-              <button type="submit" className="button secondary">Uitloggen</button>
-            </form>
+            <SyncIndicator />
+            <LogoutButton />
           </div>
         </aside>
         <main id="inhoud" className="main" tabIndex={-1}>
+          <div className="mobile-sync">
+            <SyncIndicator />
+          </div>
           {children}
         </main>
       </div>

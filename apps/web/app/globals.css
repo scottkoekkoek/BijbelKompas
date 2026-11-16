@@ -352,3 +352,31 @@ mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: in
 .verse-results a { font-weight: 600; white-space: nowrap; }
 .verse-snippet { font-family: var(--font-bible); }
 .verse:target { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; }
+
+/* Sprint 5: offline and sync */
+fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+.save-state.lokaal { color: var(--muted); }
+.sync-indicator { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--muted); font-size: 0.9rem; text-decoration: none; }
+.sync-indicator:hover { color: var(--text); }
+.sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.sync-indicator.busy .sync-dot { background: var(--accent); }
+.sync-indicator.warn .sync-dot { background: var(--danger); }
+.sync-indicator.warn { color: var(--danger); font-weight: 600; }
+.mobile-sync { display: none; }
+@media (max-width: 720px) { .mobile-sync { display: block; } }
+.pin-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.95rem; }
+.logout-warning { margin-top: 12px; }
+.logout-warning:focus { outline: 3px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.offline-banner { margin-bottom: 16px; }
+.offline-list { list-style: none; padding: 0; margin: 0; }
+.offline-list li { border-bottom: 1px solid var(--border); }
+.offline-list button { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 12px 4px; cursor: pointer; }
+.offline-list button:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; border-radius: 6px; }
+.offline-list .title { font-weight: 600; }
+.sync-table { width: 100%; border-collapse: collapse; }
+.sync-table th, .sync-table td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.offline-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.offline-header .brand { margin: 0; }
+.offline-header .sync-indicator { margin: 0; }
+.offline-page .main { max-width: 860px; margin: 0 auto; }
+.pin-row { margin-top: 8px; }

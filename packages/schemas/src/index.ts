@@ -3,3 +3,4 @@ export * from "./preferences";
 export * from "./profile";
 export * from "./bible";
 export * from "./notes";
+export * from "./sync";

@@ -1,5 +1,6 @@
 /** Paths reachable without signing in. Everything else requires a session. */
-export const PUBLIC_PATHS = ["/login", "/wachtwoord-vergeten", "/auth/callback"] as const;
+/** /offline holds no private data in its HTML: it shows what this browser stored itself (Sprint 5). */
+export const PUBLIC_PATHS = ["/login", "/wachtwoord-vergeten", "/auth/callback", "/offline"] as const;
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

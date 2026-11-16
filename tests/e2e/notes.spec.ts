@@ -1,6 +1,6 @@
 // Sprint 3: notes (BK-016, BK-017, BK-018, BK-021, BK-022, BK-023, BK-024). Uses only the fictitious e2e user and TEST text.
 import { expect, test, type Page } from "@playwright/test";
-import { login } from "./fixtures";
+import { login, newDevice } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const body = (page: Page) => page.locator(".note-body[contenteditable='true']");
@@ -76,34 +76,42 @@ test("insert a Bible reference, finish the note and restore an older version", a
   await expect(page.getByRole("link", { name: "3 versies" })).toBeVisible();
 });
 
-test("a change made elsewhere is never overwritten: keep a conflict copy", async ({ page, context }) => {
+test("a change made on another device is never overwritten: keep a conflict copy", async ({ page, browser }, info) => {
   const title = unique("Conflict");
   await newNote(page, title);
   const url = page.url();
 
-  const other = await context.newPage();
-  await other.goto(url);
+  // a second device: its own browser storage
+  const device = await newDevice(browser, info);
+  const other = await device.newPage();
+  await login(other, new URL(url).pathname);
   await expect(body(other)).toBeVisible();
 
   await body(page).click();
-  await page.keyboard.type("Tekst uit tabblad één.");
+  await page.keyboard.type("Tekst van apparaat één.");
   await expect(saveState(page)).toHaveText("Opgeslagen");
 
   await body(other).click();
-  await other.keyboard.type("Tekst uit tabblad twee.");
-  await expect(saveState(other)).toHaveText("Niet opgeslagen: conflict.");
+  await other.keyboard.type("Tekst van apparaat twee.");
+  await expect(saveState(other)).toHaveText("Conflict: elders gewijzigd.");
   const alert = other.locator(".alert.error[role=alert]");
-  await expect(alert).toContainText("niet overschreven");
+  await expect(alert).toContainText("niet");
+  await expect(alert).toContainText("overschreven");
 
   await alert.getByRole("button", { name: "Bewaar mijn tekst als conflictkopie" }).click();
+  await expect(other).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await expect(other).not.toHaveURL(url);
-  await expect(other.getByLabel("Titel")).toHaveValue(`${title} (conflictkopie)`);
-  await expect(body(other)).toContainText("Tekst uit tabblad twee.");
+  await expect(other.getByLabel("Titel")).toHaveValue(new RegExp(`^${title} \\(conflictkopie `));
+  await expect(body(other)).toContainText("Tekst van apparaat twee.");
 
-  // The original keeps the text of tab one.
+  // The original keeps the text of device one, also on device two.
   await page.reload();
-  await expect(body(page)).toContainText("Tekst uit tabblad één.");
-  await expect(body(page)).not.toContainText("Tekst uit tabblad twee.");
+  await expect(body(page)).toContainText("Tekst van apparaat één.");
+  await expect(body(page)).not.toContainText("Tekst van apparaat twee.");
+  await other.goto(url);
+  await expect(body(other)).toContainText("Tekst van apparaat één.");
+  await expect(body(other)).not.toContainText("Tekst van apparaat twee.");
+  await device.close();
 });
 
 test("archive a note and bring it back", async ({ page }) => {
