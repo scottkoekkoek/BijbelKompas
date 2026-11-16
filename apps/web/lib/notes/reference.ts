@@ -1,0 +1,72 @@
+/** Parsing typed Bible references such as "Joh 3:16-18" (BK-017 reference block). Pure. */
+import { formatReference } from "@/lib/bible";
+
+export type BookInfo = { code: string; name: string; chapterCount: number };
+export type ParsedRef = {
+  book: BookInfo;
+  startChapter: number;
+  startVerse: number;
+  endChapter: number;
+  endVerse: number;
+  label: string;
+};
+
+const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[\s.]+/g, "");
+
+/** Finds a book by (abbreviated) name: "joh" → Johannes, "1 joh" → 1 Johannes, "ps" → Psalmen. */
+export function findBook(books: BookInfo[], query: string): BookInfo | null {
+  const q = norm(query);
+  if (!q) return null;
+  return books.find((b) => norm(b.name) === q) ?? books.find((b) => norm(b.name).startsWith(q)) ?? null;
+}
+
+const REF = /^\s*((?:[1-3]\s*)?[^\d:]+?)\s*(\d{1,3})(?:\s*:\s*(\d{1,3}))?(?:\s*-\s*(\d{1,3})(?:\s*:\s*(\d{1,3}))?)?\s*$/u;
+
+/**
+ * Accepts "Johannes 3", "Joh 3:16", "Joh 3:16-18", "Joh 3:16-4:2" and "Ps 23-24".
+ * A whole chapter is stored as verse 1 to 999 and resolved by the database.
+ */
+export function parseReference(input: string, books: BookInfo[]): ParsedRef | { error: string } {
+  const m = REF.exec(input);
+  if (!m) return { error: "Schrijf de verwijzing als bijvoorbeeld “Joh 3:16-18”." };
+  const [, bookPart, c1, v1, x, y] = m;
+  const book = findBook(books, bookPart!);
+  if (!book) return { error: `Bijbelboek “${bookPart!.trim()}” niet gevonden.` };
+
+  const startChapter = Number(c1);
+  let startVerse: number;
+  let endChapter: number;
+  let endVerse: number;
+  if (v1 === undefined) {
+    // "Ps 23" or "Ps 23-24": whole chapters
+    startVerse = 1;
+    endChapter = x !== undefined && y === undefined ? Number(x) : startChapter;
+    endVerse = 999;
+    if (y !== undefined) return { error: "Schrijf de verwijzing als bijvoorbeeld “Joh 3:16-18”." };
+  } else {
+    startVerse = Number(v1);
+    if (x === undefined) {
+      endChapter = startChapter;
+      endVerse = startVerse;
+    } else if (y === undefined) {
+      endChapter = startChapter;
+      endVerse = Number(x);
+    } else {
+      endChapter = Number(x);
+      endVerse = Number(y);
+    }
+  }
+  if (startChapter < 1 || endChapter > book.chapterCount || startChapter > book.chapterCount) {
+    return { error: `${book.name} heeft ${book.chapterCount} hoofdstuk${book.chapterCount === 1 ? "" : "ken"}.` };
+  }
+  if (startVerse < 1 || endChapter < startChapter || (endChapter === startChapter && endVerse < startVerse)) {
+    return { error: "Het einde van de verwijzing ligt vóór het begin." };
+  }
+  return { book, startChapter, startVerse, endChapter, endVerse, label: refLabel(book.name, startChapter, startVerse, endChapter, endVerse) };
+}
+
+export function refLabel(bookName: string, sc: number, sv: number, ec: number, ev: number): string {
+  if (sv === 1 && ev >= 999) return sc === ec ? `${bookName} ${sc}` : `${bookName} ${sc}-${ec}`;
+  if (sc === ec) return formatReference(bookName, sc, { from: sv, to: ev });
+  return `${bookName} ${sc}:${sv}-${ec}:${ev}`;
+}

@@ -34,6 +34,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const translation = pickTranslation(translations, v?.toUpperCase(), prefs.data?.default_translation_id ?? null);
   const data = translation ? await getChapter(supabase, translation, book, chapter) : null;
   const { prev, next } = neighbours(books, book.code, chapter);
+  const { data: chapterNotes } = data
+    ? await supabase.rpc("notes_for_chapter", { p_translation: data.translation.code, p_book: book.code, p_chapter: chapter })
+    : { data: null };
+  const noteRows = (chapterNotes ?? []) as { verse_number: number; note_id: string; title: string }[];
+  const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
   const references = translations.filter((t) => !t.hasText && t.externalUrl);
   const readable = translations.filter((t) => t.hasText);
 
@@ -81,7 +86,21 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           bookName={book.name}
           chapter={chapter}
           translationCode={data.translation.code}
+          noted={[...new Set(noteRows.map((r) => r.verse_number))]}
         />
+      )}
+
+      {notesInChapter.length > 0 && (
+        <section className="chapter-notes" aria-labelledby="chapter-notes-title">
+          <h2 id="chapter-notes-title">Notities bij dit hoofdstuk</h2>
+          <ul>
+            {notesInChapter.map((n) => (
+              <li key={n.note_id}>
+                <Link href={`/notes/${n.note_id}`}>{n.title || "Naamloze notitie"}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <nav className="chapter-nav" aria-label="Hoofdstukken">
