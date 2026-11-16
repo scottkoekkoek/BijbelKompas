@@ -32,3 +32,21 @@ export async function authenticated() {
 export function logError(requestId: string, route: string, err: { code?: string; message?: string } | null) {
   console.error(JSON.stringify({ level: "error", requestId, route, code: err?.code ?? "unknown" }));
 }
+
+/** Reads a JSON body and checks it against a schema; returns the parsed value or an error response. */
+export async function readBody<T>(
+  request: Request,
+  schema: { safeParse(v: unknown): { success: true; data: T } | { success: false; error: unknown } },
+  requestId: string,
+  message: string,
+): Promise<{ ok: true; data: T } | { ok: false; response: NextResponse }> {
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return { ok: false, response: errorResponse("INVALID_INPUT", "Ongeldige JSON.", requestId) };
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) return { ok: false, response: errorResponse("INVALID_INPUT", message, requestId) };
+  return { ok: true, data: parsed.data };
+}

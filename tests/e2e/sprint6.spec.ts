@@ -88,6 +88,7 @@ test("export everything as a zip with JSON and Markdown (BK-054)", async ({ page
 
   const data = JSON.parse(strFromU8(files["bijbelkompas.json"]!));
   expect(data).toMatchObject({ format: "bijbelkompas-export", version: 1 });
+  expect(Array.isArray(data.collections) && Array.isArray(data.questions)).toBe(true); // Sprint 7 (ADR-008)
   const note = data.notes.find((n: { title: string }) => n.title === title);
   expect(note.revisions).toHaveLength(1);
   expect(JSON.stringify(note.document)).toContain("Tekst voor de export.");

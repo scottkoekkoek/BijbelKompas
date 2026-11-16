@@ -9,6 +9,9 @@ export default function MorePage() {
     <>
       <h1>Meer</h1>
       <ul className="nav-list">
+        <li><Link className="nav-link" href="/collections">Collecties</Link></li>
+        <li><Link className="nav-link" href="/questions">Onderzoeksvragen</Link></li>
+        <li><Link className="nav-link" href="/timeline">Tijdlijn</Link></li>
         <li><Link className="nav-link" href="/templates">Sjablonen</Link></li>
         <li><Link className="nav-link" href="/settings">Instellingen</Link></li>
         <li><Link className="nav-link" href="/sync">Offline en synchronisatie</Link></li>

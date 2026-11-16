@@ -44,6 +44,12 @@ export type ExportData = {
   templates: unknown[];
   preferences: unknown;
   readingPosition: unknown;
+  /** Sprint 7 (added to version 1; a reader treats a missing list as empty) */
+  collections?: unknown[];
+  collectionItems?: unknown[];
+  questions?: unknown[];
+  questionNotes?: unknown[];
+  questionPassages?: unknown[];
 };
 
 export function linksOf(doc: ExportNote["document"]): ExportNote["passageLinks"] {
@@ -166,7 +172,7 @@ export function readme(data: ExportData): string {
     `Gemaakt op ${data.exportedAt.slice(0, 16).replace("T", " ")} (UTC). ${data.notes.length} notities.`,
     "",
     "- `bijbelkompas.json`: alles, volledig en machineleesbaar (notities, documenten, Bijbelkoppelingen, alle versies,",
-    "  sjablonen en voorkeuren). Dit bestand kan later weer worden ingelezen.",
+    "  collecties, onderzoeksvragen, sjablonen en voorkeuren). Dit bestand kan later weer worden ingelezen.",
     "- `notities/`: elke notitie als leesbaar Markdown-bestand, met koppelingen en een lijst van versies.",
     "",
     "Bewaar deze export op een veilige plek: hij bevat al je persoonlijke notities.",

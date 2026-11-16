@@ -35,3 +35,12 @@ export const ChevronLeftIcon = ({ size = 18 }: Props) => (
 export const ChevronRightIcon = ({ size = 18 }: Props) => (
   <svg {...base(size)}><path d="m9 5 7 7-7 7" /></svg>
 );
+export const FolderIcon = ({ size = 22 }: Props) => (
+  <svg {...base(size)}><path d="M3 6h6l2 2h10v11H3z" /></svg>
+);
+export const QuestionIcon = ({ size = 22 }: Props) => (
+  <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" /><path d="M12 17h.01" /></svg>
+);
+export const TimelineIcon = ({ size = 22 }: Props) => (
+  <svg {...base(size)}><path d="M6 3v18" /><circle cx="6" cy="7" r="2" /><circle cx="6" cy="17" r="2" /><path d="M10 7h9M10 17h7" /></svg>
+);
