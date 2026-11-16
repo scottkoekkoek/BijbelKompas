@@ -1,6 +1,6 @@
 # ADR-004 — Bijbelvertalingen en rechten
 
-Status: Sprint 1 deels; bron Statenvertaling open (Sprint 2).
+Status: Sprint 1 deels; bron Statenvertaling: zie ADR-005.
 
 - `bible_translations.rights_status`: `public_domain`, `licensed`, `reference_only`, `test_fixture`.
 - De database weigert tekst op te slaan voor `reference_only` en weigert offline/AI-rechten daarop.

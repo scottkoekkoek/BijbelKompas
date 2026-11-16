@@ -33,3 +33,29 @@ export const BibleBook = z.object({
   chapterCount: z.number().int().min(1),
 });
 export type BibleBook = z.infer<typeof BibleBook>;
+
+/** Book codes as stored in bible_books (e.g. GEN, 1SA, JHN). */
+export const BookCode = z.string().regex(/^[1-3]?[A-Z]{2,3}$/);
+export const TranslationCode = z.string().regex(/^[A-Z0-9_]{2,20}$/);
+
+/** One verse as shown in the reader, in the translation's own numbering. */
+export const ChapterVerse = z.object({
+  verse: z.number().int().min(1),
+  text: z.string(),
+});
+export type ChapterVerse = z.infer<typeof ChapterVerse>;
+
+/** GET /api/v1/bible/{translation}/{book}/{chapter} */
+export const ChapterResponse = z.object({
+  translation: z.object({ code: TranslationCode, name: z.string(), attribution: z.string().nullable() }),
+  book: BibleBook,
+  chapter: z.number().int().min(1),
+  verses: z.array(ChapterVerse),
+});
+export type ChapterResponse = z.infer<typeof ChapterResponse>;
+
+/** PUT /api/v1/me/reading-position */
+export const ReadingPositionInput = z
+  .object({ translation: TranslationCode, book: BookCode, chapter: z.number().int().min(1).max(150) })
+  .strict();
+export type ReadingPositionInput = z.infer<typeof ReadingPositionInput>;

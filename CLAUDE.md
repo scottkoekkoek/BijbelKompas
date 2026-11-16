@@ -28,6 +28,7 @@ When requirements are unclear, ask a targeted question and document an ADR.
 - `pnpm test:db` — RLS/constraint tests (needs `pnpm db:start`)
 - `pnpm build && pnpm test:e2e` — Playwright e2e + axe (needs local stack)
 - `scripts/backup.sh`, `scripts/restore-drill.sh` — see docs/runbooks
+- `scripts/import-statenvertaling.sh` — load the public-domain SV (ADR-005); production only via the manual workflow
 
 ## Next.js
 This repo uses Next.js 16: `proxy.ts` replaces `middleware.ts`. Read

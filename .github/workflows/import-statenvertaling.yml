@@ -1,0 +1,33 @@
+name: Statenvertaling inladen (productie)
+
+# Loads the public-domain Statenvertaling (1888) into production. See ADR-005.
+# Manual only: the owner starts it in GitHub > Actions > "Statenvertaling inladen (productie)".
+# Run the migrations first (migration 0005 creates the SV entry). Idempotent; deletes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Typ "productie" om te bevestigen'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-statenvertaling
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'productie'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Statenvertaling controleren en inladen
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: scripts/import-statenvertaling.sh

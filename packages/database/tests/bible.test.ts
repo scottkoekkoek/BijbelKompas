@@ -120,6 +120,8 @@ describe("translation rights", () => {
       { segment_key: "GEN.1.1", mapping_type: "exact", chapter_number: 1, verse_number: 1 },
       { segment_key: "GEN.1.2", mapping_type: "exact", chapter_number: 1, verse_number: 2 },
       { segment_key: "GEN.1.3", mapping_type: "exact", chapter_number: 1, verse_number: 3 },
+      { segment_key: "GEN.2.1", mapping_type: "exact", chapter_number: 2, verse_number: 1 },
+      { segment_key: "GEN.2.2", mapping_type: "exact", chapter_number: 2, verse_number: 2 },
     ]);
   });
 
