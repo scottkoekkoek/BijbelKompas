@@ -46,7 +46,10 @@ test("insert a Bible reference, finish the note and restore an older version", a
   await ref.fill("Genesis 1:1-2");
   await page.getByRole("button", { name: "Invoegen" }).click();
   await expect(body(page).locator(".ref-block")).toContainText("Genesis 1:1-2");
+  // the editor takes focus in the next animation frame (TipTap); typing earlier lands in the reference field
+  await expect(body(page)).toBeFocused();
   await page.keyboard.type("Eerste gedachte.");
+  await expect(body(page)).toContainText("Eerste gedachte.");
   await expect(saveState(page)).toHaveText("Opgeslagen");
 
   await page.getByRole("button", { name: "Afronden" }).click();
