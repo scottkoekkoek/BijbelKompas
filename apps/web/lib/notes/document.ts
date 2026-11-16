@@ -28,6 +28,25 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type BibleReferenceAttrs = PassageRef & { blockId: string; label: string };
 
+/**
+ * BK-030: a text block can be linked to Bible passages. The links live in the block's own attrs
+ * (`passages`), so they stay with that block when other blocks change (AT-02).
+ */
+export type LinkedPassage = PassageRef & { label: string };
+export const LINKABLE_TYPES = new Set(["paragraph", "heading", "bulletList", "orderedList", "blockquote"]);
+export const MAX_PASSAGES_PER_BLOCK = 10;
+
+/** The valid passages of a block (anything malformed is left out). */
+export function passagesOf(node: PMNode): LinkedPassage[] {
+  const raw = node.attrs?.passages;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => (p && typeof p === "object" ? refFromAttrs(p as Record<string, unknown>) : null)).filter((p): p is LinkedPassage => p !== null);
+}
+
+export const samePassage = (a: LinkedPassage, b: LinkedPassage) =>
+  a.translation === b.translation && a.book === b.book && a.startChapter === b.startChapter &&
+  a.startVerse === b.startVerse && a.endChapter === b.endChapter && a.endVerse === b.endVerse;
+
 export function emptyDocument(blockId: string): NoteDocument {
   return { type: "doc", content: [{ type: "paragraph", attrs: { blockId } }] };
 }
@@ -69,6 +88,13 @@ export function validateDocument(doc: NoteDocument): string[] {
     if (node.type === "bibleReference") {
       const r = refFromAttrs(node.attrs ?? {});
       if (!r) errors.push(`Blok ${i + 1}: ongeldige Bijbelverwijzing`);
+    }
+    const raw = node.attrs?.passages;
+    if (raw !== undefined && raw !== null) {
+      if (!LINKABLE_TYPES.has(node.type)) errors.push(`Blok ${i + 1}: dit bloktype kan niet aan verzen gekoppeld worden`);
+      else if (!Array.isArray(raw)) errors.push(`Blok ${i + 1}: ongeldige koppeling`);
+      else if (raw.length > MAX_PASSAGES_PER_BLOCK) errors.push(`Blok ${i + 1}: hoogstens ${MAX_PASSAGES_PER_BLOCK} koppelingen per blok`);
+      else if (passagesOf(node).length !== raw.length) errors.push(`Blok ${i + 1}: ongeldige koppeling`);
     }
     walk(node, 0);
   });
@@ -138,12 +164,9 @@ export function deriveIndexes(doc: NoteDocument, hash: (s: string) => string) {
     content_hash: hash(JSON.stringify(node)),
   }));
   const links: DerivedLink[] = [];
-  for (const node of top) {
-    if (node.type !== "bibleReference") continue;
-    const r = refFromAttrs(node.attrs ?? {});
-    if (!r) continue;
+  const add = (blockId: string, r: LinkedPassage) =>
     links.push({
-      block_id: String(node.attrs?.blockId),
+      block_id: blockId,
       reference_text: r.label,
       origin: "editor",
       translation: r.translation,
@@ -153,6 +176,15 @@ export function deriveIndexes(doc: NoteDocument, hash: (s: string) => string) {
       end_chapter: r.endChapter,
       end_verse: r.endVerse,
     });
+  for (const node of top) {
+    const blockId = String(node.attrs?.blockId);
+    if (node.type === "bibleReference") {
+      const r = refFromAttrs(node.attrs ?? {});
+      if (r) add(blockId, r);
+    } else if (LINKABLE_TYPES.has(node.type)) {
+      // several passages on one block become several ranges of that block's link
+      for (const r of passagesOf(node)) add(blockId, r);
+    }
   }
   return { blocks, links };
 }

@@ -1,11 +1,33 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { readerPath } from "@/lib/bible";
-import type { PMNode } from "@/lib/notes/document";
+import { Fragment } from "react";
+import { passagesOf, type PMNode } from "@/lib/notes/document";
 
 /** Read-only rendering of a note document (versions). Builds React elements, never raw HTML. */
 export function DocumentView({ doc }: { doc: { content?: unknown[] } }) {
-  return <div className="note-body readonly">{((doc.content ?? []) as PMNode[]).map((n, i) => render(n, i))}</div>;
+  return (
+    <div className="note-body readonly">
+      {((doc.content ?? []) as PMNode[]).map((n, i) => {
+        const passages = passagesOf(n);
+        if (passages.length === 0) return render(n, i);
+        return (
+          <Fragment key={i}>
+            {render(n, i)}
+            <p className="block-passages">
+              Gekoppeld aan:{" "}
+              {passages.map((p, j) => (
+                <Fragment key={j}>
+                  {j > 0 && "; "}
+                  <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                </Fragment>
+              ))}
+            </p>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 }
 
 function marks(node: PMNode, key: number): ReactNode {

@@ -3,6 +3,8 @@ import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { LINKABLE_TYPES, passagesOf, type LinkedPassage } from "@/lib/notes/document";
+import { passageLinksPlugin } from "@/lib/notes/passage-links";
 import { BibleReferenceView } from "./BibleReferenceView";
 
 export const TOP_LEVEL_TYPES = ["paragraph", "heading", "bulletList", "orderedList", "blockquote", "horizontalRule", "bibleReference"];
@@ -57,6 +59,44 @@ export const BlockId = Extension.create({
   },
 });
 
+/**
+ * BK-030: verse links on text blocks (`passages`). Shown under the block; kept by the first part on a
+ * split and merged on a join (lib/notes/passage-links).
+ */
+export const PassageLinks = Extension.create({
+  name: "passageLinks",
+  addGlobalAttributes() {
+    return [
+      {
+        types: [...LINKABLE_TYPES],
+        attributes: {
+          passages: {
+            default: null,
+            keepOnSplit: false,
+            parseHTML: (el) => {
+              try {
+                const list = passagesOf({ type: "paragraph", attrs: { passages: JSON.parse(el.getAttribute("data-passages") ?? "null") } });
+                return list.length ? list : null;
+              } catch {
+                return null;
+              }
+            },
+            renderHTML: (attrs) => {
+              const list = (attrs.passages as LinkedPassage[] | null) ?? [];
+              return list.length
+                ? { "data-passages": JSON.stringify(list), "data-passage-labels": list.map((x) => x.label).join("; ") }
+                : {};
+            },
+          },
+        },
+      },
+    ];
+  },
+  addProseMirrorPlugins() {
+    return [passageLinksPlugin()];
+  },
+});
+
 export const BibleReference = Node.create({
   name: "bibleReference",
   group: "block",
@@ -100,5 +140,6 @@ export function noteExtensions() {
     }),
     BibleReference,
     BlockId,
+    PassageLinks,
   ];
 }

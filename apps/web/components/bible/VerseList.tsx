@@ -1,8 +1,11 @@
 "use client";
 import type { ChapterVerse } from "@bk/schemas";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
+
+type LinkedNote = { noteId: string; title: string; blockId: string; reference: string; snippet: string };
 
 type Props = {
   verses: ChapterVerse[];
@@ -18,6 +21,23 @@ type Props = {
 export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [] }: Props) {
   const [selection, setSelection] = useState<Selection>(null);
   const [status, setStatus] = useState("");
+  const [linked, setLinked] = useState<LinkedNote[] | null>(null);
+
+  // BK-031: the notes linked to the selected verses (only asked when a selected verse has a note).
+  const hasNoted = !!selection && noted.some((n) => n >= selection.from && n <= selection.to);
+  useEffect(() => {
+    if (!selection || !hasNoted) return;
+    let alive = true;
+    const q = new URLSearchParams({ translation: translationCode, book: bookCode, chapter: String(chapter), from: String(selection.from), to: String(selection.to) });
+    fetch(`/api/v1/passages/notes?${q}`)
+      .then((r) => (r.ok ? r.json() : { notes: [] }))
+      .then((b: { notes: LinkedNote[] }) => alive && setLinked(b.notes))
+      .catch(() => alive && setLinked([]));
+    return () => {
+      alive = false;
+      setLinked(null);
+    };
+  }, [selection, hasNoted, translationCode, bookCode, chapter]);
 
   // Remember where the owner is reading. Failing to save is harmless, so it stays silent.
   useEffect(() => {
@@ -106,6 +126,20 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
               Wissen
             </button>
           </div>
+          {hasNoted && linked && linked.length > 0 && (
+            <section className="verse-notes" aria-label="Notities bij deze verzen">
+              <h2>Notities bij deze verzen</h2>
+              <ul>
+                {linked.map((n) => (
+                  <li key={`${n.noteId}-${n.blockId}`}>
+                    <Link href={`/notes/${n.noteId}#blok-${n.blockId}`}>{n.title || "Naamloze notitie"}</Link>
+                    <span className="muted"> · {n.reference}</span>
+                    {n.snippet && <p className="verse-note-snippet">{n.snippet}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
       <p className="visually-hidden" role="status" aria-live="polite">
