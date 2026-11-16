@@ -1,6 +1,7 @@
 "use client";
 import type { ChapterVerse } from "@bk/schemas";
 import { useEffect, useState } from "react";
+import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
 
 type Props = {
@@ -9,10 +10,12 @@ type Props = {
   bookName: string;
   chapter: number;
   translationCode: string;
+  /** verse numbers that have at least one note */
+  noted?: number[];
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [] }: Props) {
   const [selection, setSelection] = useState<Selection>(null);
   const [status, setStatus] = useState("");
 
@@ -62,7 +65,12 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
               onClick={() => toggle(v.verse)}
             >
               {v.verse}
-            </button>{" "}
+            </button>
+            {noted.includes(v.verse) && (
+              <span className="note-dot" title="Er is een notitie bij dit vers">
+                <span className="visually-hidden">(notitie)</span>
+              </span>
+            )}{" "}
             <span className="verse-text" onClick={() => toggle(v.verse)}>
               {v.text}
             </span>{" "}
@@ -80,6 +88,20 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             <button type="button" className="button secondary" onClick={() => copy("text")}>
               Kopieer tekst
             </button>
+            <NewNoteButton
+              label="In notitie zetten"
+              className="button secondary"
+              input={{
+                reference: {
+                  translation: translationCode,
+                  book: bookCode,
+                  startChapter: chapter,
+                  startVerse: selection.from,
+                  endChapter: chapter,
+                  endVerse: selection.to,
+                },
+              }}
+            />
             <button type="button" className="button secondary" onClick={() => setSelection(null)}>
               Wissen
             </button>
