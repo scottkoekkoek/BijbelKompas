@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
 import { NoteEditor } from "@/components/notes/NoteEditor";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
-import { getNote } from "@/lib/notes/data";
+import { getNote, getSermonSuggestions } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = { params: Promise<{ id: string }> };
@@ -26,7 +26,7 @@ export default async function NotePage({ params }: Props) {
   const r = await load((await params).id);
   if (!r?.note) notFound();
   const { supabase, note } = r;
-  const [books, translations] = await Promise.all([getBooks(supabase), getTranslations(supabase)]);
+  const [books, translations, suggestions] = await Promise.all([getBooks(supabase), getTranslations(supabase), getSermonSuggestions(supabase)]);
   const translation = pickTranslation(translations, undefined, null);
 
   return (
@@ -43,6 +43,7 @@ export default async function NotePage({ params }: Props) {
         note={note}
         books={books.map((b) => ({ code: b.code, name: b.name, chapterCount: b.chapterCount }))}
         defaultTranslation={translation?.code ?? "SV"}
+        suggestions={suggestions}
       />
       <div className="button-row note-footer">
         <Link className="button secondary" href={`/notes/${note.id}/versies`}>

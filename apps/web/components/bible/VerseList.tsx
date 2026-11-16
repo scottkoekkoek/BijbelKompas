@@ -56,7 +56,7 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
     <>
       <div className="bible-text">
         {verses.map((v) => (
-          <span key={v.verse} className={isSelected(v.verse) ? "verse selected" : "verse"} data-verse={v.verse}>
+          <span key={v.verse} id={`v${v.verse}`} className={isSelected(v.verse) ? "verse selected" : "verse"} data-verse={v.verse}>
             <button
               type="button"
               className="verse-num"

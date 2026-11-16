@@ -9,10 +9,16 @@ import type {
   NoteType,
   RevisionReason,
   RevisionSummary,
+  SermonDetails,
+  TemplateInput,
+  TemplateUpdate,
+  NoteTemplate,
 } from "@bk/schemas";
+import { EMPTY_SERMON } from "@bk/schemas";
 import type { createClient } from "@/lib/supabase/server";
 import { canonicalJson, deriveIndexes, emptyDocument, referenceBlock, validateDocument, type PMNode } from "./document";
-import { refLabel } from "./reference";
+import { refLabel, type BookInfo } from "./reference";
+import { buildDocument, findBuiltin } from "./templates";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -61,15 +67,44 @@ export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]>
   return (data as NoteRow[]).map(toSummary);
 }
 
+type SermonRow = {
+  service_type: string | null;
+  speaker: { name: string } | null;
+  organization: { name: string } | null;
+  series: { name: string } | null;
+};
+const SERMON_COLUMNS = "service_type, speaker:speakers(name), organization:organizations(name), series:sermon_series(name)";
+
 export async function getNote(db: Db, id: string): Promise<Note | null> {
-  const [note, doc] = await Promise.all([
+  const [note, doc, sermon] = await Promise.all([
     db.from("notes").select(NOTE_COLUMNS).eq("id", id).maybeSingle(),
     db.from("note_documents").select("document_json").eq("note_id", id).maybeSingle(),
+    db.from("sermon_details").select(SERMON_COLUMNS).eq("note_id", id).maybeSingle(),
   ]);
   if (note.error) throw note.error;
+  if (sermon.error) throw sermon.error;
   if (!note.data || !doc.data) return null;
-  return { ...toSummary(note.data as NoteRow), document: doc.data.document_json as NoteDocument };
+  const sd = sermon.data as unknown as SermonRow | null;
+  return {
+    ...toSummary(note.data as NoteRow),
+    document: doc.data.document_json as NoteDocument,
+    sermon: sd
+      ? { speaker: sd.speaker?.name ?? null, organization: sd.organization?.name ?? null, series: sd.series?.name ?? null, serviceType: sd.service_type }
+      : EMPTY_SERMON,
+  };
 }
+
+/** Names used before, offered as suggestions in the sermon fields. */
+export async function getSermonSuggestions(db: Db) {
+  const names = async (table: "speakers" | "organizations" | "sermon_series") => {
+    const { data, error } = await db.from(table).select("name").order("name").limit(500);
+    if (error) throw error;
+    return (data ?? []).map((r) => r.name as string);
+  };
+  const [speakers, organizations, series] = await Promise.all([names("speakers"), names("organizations"), names("sermon_series")]);
+  return { speakers, organizations, series };
+}
+export type SermonSuggestions = Awaited<ReturnType<typeof getSermonSuggestions>>;
 
 export type SaveResult =
   | { ok: true; note: NoteSummary }
@@ -85,7 +120,11 @@ type SaveArgs = {
   document: NoteDocument;
   reason?: RevisionReason;
   status?: NoteStatus;
+  sermon?: SermonDetails;
 };
+
+const sermonParam = (s: SermonDetails | undefined) =>
+  s ? { speaker: s.speaker, organization: s.organization, series: s.series, service_type: s.serviceType } : null;
 
 export async function saveNote(db: Db, id: string, a: SaveArgs): Promise<SaveResult> {
   const problems = validateDocument(a.document);
@@ -105,6 +144,7 @@ export async function saveNote(db: Db, id: string, a: SaveArgs): Promise<SaveRes
       p_links: links,
       p_reason: a.reason ?? null,
       p_status: a.status ?? null,
+      p_sermon: sermonParam(a.sermon),
     })
     .single();
   if (error) {
@@ -125,14 +165,20 @@ export async function saveNote(db: Db, id: string, a: SaveArgs): Promise<SaveRes
 export async function createNote(
   db: Db,
   input: CreateNoteInput,
-  bookName: (code: string) => string | null,
+  ctx: { books: BookInfo[]; translation: string },
 ): Promise<{ ok: true; note: NoteSummary } | { ok: false; message: string; details?: unknown }> {
   let document: NoteDocument = emptyDocument(randomUUID());
+  let noteType = input.noteType;
   if (input.document) {
     document = input.document;
+  } else if (input.template) {
+    const template = await getTemplate(db, input.template);
+    if (!template) return { ok: false, message: "Sjabloon niet gevonden." };
+    document = buildDocument(template.parts, { newId: randomUUID, books: ctx.books, translation: ctx.translation });
+    noteType = noteType ?? template.noteType;
   } else if (input.reference) {
     const r = input.reference;
-    const name = bookName(r.book);
+    const name = ctx.books.find((b) => b.code === r.book)?.name;
     if (!name) return { ok: false, message: "Onbekend Bijbelboek." };
     const label = refLabel(name, r.startChapter, r.startVerse, r.endChapter, r.endVerse);
     document = {
@@ -149,7 +195,7 @@ export async function createNote(
   const created = await db
     .rpc("create_note", {
       p_title: input.title ?? "",
-      p_note_type: input.noteType ?? (input.reference ? "bijbelstudie" : "vrij"),
+      p_note_type: noteType ?? (input.reference ? "bijbelstudie" : "vrij"),
       p_event_date: input.eventDate ?? null,
       p_document: { type: "doc", content: [{ type: "paragraph", attrs: { blockId: randomUUID() } }] },
       p_content_hash: "nieuw",
@@ -195,7 +241,13 @@ export async function getRevision(db: Db, id: string, n: number) {
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const meta = data.metadata_json as { title: string; note_type: NoteType; status: NoteStatus; event_date: string | null };
+  const meta = data.metadata_json as {
+    title: string;
+    note_type: NoteType;
+    status: NoteStatus;
+    event_date: string | null;
+    sermon?: { speaker: string | null; organization: string | null; series: string | null; service_type: string | null };
+  };
   return {
     revisionNumber: data.revision_number as number,
     reason: data.reason as RevisionReason,
@@ -217,7 +269,139 @@ export async function restoreRevision(db: Db, id: string, n: number, baseVersion
     document: rev.document,
     reason: "herstel",
     status: "concept",
+    // revisions from before Sprint 4 have no sermon details: then the current ones stay
+    sermon: rev.meta.sermon
+      ? {
+          speaker: rev.meta.sermon.speaker,
+          organization: rev.meta.sermon.organization,
+          series: rev.meta.sermon.series,
+          serviceType: rev.meta.sermon.service_type,
+        }
+      : undefined,
   });
+}
+
+// templates (BK-020) ---------------------------------------------------------------
+type TemplateRow = {
+  id: string;
+  name: string;
+  note_type: NoteType;
+  description: string;
+  template_json: { parts: NoteTemplate["parts"] };
+  template_version: number;
+  archived_at: string | null;
+};
+const TEMPLATE_COLUMNS = "id, name, note_type, description, template_json, template_version, archived_at";
+const toTemplate = (r: TemplateRow): NoteTemplate => ({
+  id: r.id,
+  builtIn: false,
+  name: r.name,
+  noteType: r.note_type,
+  description: r.description,
+  parts: r.template_json.parts,
+  version: r.template_version,
+  archived: r.archived_at !== null,
+});
+
+export async function listTemplates(db: Db, archived = false): Promise<NoteTemplate[]> {
+  let q = db.from("note_templates").select(TEMPLATE_COLUMNS).order("name");
+  q = archived ? q.not("archived_at", "is", null) : q.is("archived_at", null);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as TemplateRow[]).map(toTemplate);
+}
+
+/** An own template (by uuid, RLS limits it to the owner) or a built-in one ("ingebouwd:…"). */
+export async function getTemplate(db: Db, id: string): Promise<NoteTemplate | null> {
+  if (id.startsWith("ingebouwd:")) return findBuiltin(id);
+  const { data, error } = await db.from("note_templates").select(TEMPLATE_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? toTemplate(data as TemplateRow) : null;
+}
+
+export async function createTemplate(db: Db, t: TemplateInput): Promise<NoteTemplate> {
+  const { data, error } = await db
+    .from("note_templates")
+    .insert({ name: t.name, note_type: t.noteType, description: t.description, template_json: { parts: t.parts } })
+    .select(TEMPLATE_COLUMNS)
+    .single();
+  if (error) throw error;
+  return toTemplate(data as TemplateRow);
+}
+
+export async function updateTemplate(db: Db, id: string, t: TemplateUpdate): Promise<NoteTemplate | null> {
+  const patch: Record<string, unknown> = {};
+  if (t.name !== undefined) patch.name = t.name;
+  if (t.noteType !== undefined) patch.note_type = t.noteType;
+  if (t.description !== undefined) patch.description = t.description;
+  if (t.parts !== undefined) patch.template_json = { parts: t.parts };
+  if (t.archived !== undefined) patch.archived_at = t.archived ? new Date().toISOString() : null;
+  const { data, error } = await db.from("note_templates").update(patch).eq("id", id).select(TEMPLATE_COLUMNS).maybeSingle();
+  if (error) throw error;
+  return data ? toTemplate(data as TemplateRow) : null;
+}
+
+// keyword search (BK-034, BK-035, BK-038) ------------------------------------------------
+export type SearchFilters = {
+  type?: NoteType;
+  status?: NoteStatus;
+  from?: string;
+  to?: string;
+  book?: string;
+  speaker?: string;
+  archived?: boolean;
+};
+export type NoteHit = {
+  noteId: string;
+  title: string;
+  noteType: NoteType;
+  status: NoteStatus;
+  eventDate: string | null;
+  updatedAt: string;
+  blockId: string | null;
+  snippet: string;
+};
+export type VerseHit = { bookCode: string; bookName: string; chapter: number; verse: number; snippet: string };
+
+export async function searchNotes(db: Db, query: string, f: SearchFilters = {}): Promise<NoteHit[]> {
+  const { data, error } = await db.rpc("search_notes", {
+    p_query: query,
+    p_type: f.type ?? null,
+    p_status: f.status ?? null,
+    p_from: f.from ?? null,
+    p_to: f.to ?? null,
+    p_book: f.book ?? null,
+    p_speaker: f.speaker ?? null,
+    p_archived: f.archived ?? false,
+    p_limit: 50,
+  });
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    noteId: r.note_id as string,
+    title: r.title as string,
+    noteType: r.note_type as NoteType,
+    status: r.status as NoteStatus,
+    eventDate: r.event_date as string | null,
+    updatedAt: new Date(r.updated_at as string).toISOString(),
+    blockId: r.block_id as string | null,
+    snippet: r.snippet as string,
+  }));
+}
+
+export async function searchBible(db: Db, translation: string, query: string): Promise<{ total: number; hits: VerseHit[] }> {
+  const { data, error } = await db.rpc("search_bible", { p_translation: translation, p_query: query, p_limit: 50 });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return {
+    total: Number(rows[0]?.total ?? 0),
+    hits: rows.map((r) => ({
+      bookCode: r.book_code as string,
+      bookName: r.book_name as string,
+      chapter: r.chapter as number,
+      verse: r.verse as number,
+      snippet: r.snippet as string,
+    })),
+  };
 }
 
 export type { PMNode };

@@ -9,6 +9,7 @@ export default function MorePage() {
     <>
       <h1>Meer</h1>
       <ul className="nav-list">
+        <li><Link className="nav-link" href="/templates">Sjablonen</Link></li>
         <li><Link className="nav-link" href="/settings">Instellingen</Link></li>
       </ul>
       <form action={signOut} style={{ marginTop: 24 }}>

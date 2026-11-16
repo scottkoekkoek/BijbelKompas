@@ -1,7 +1,6 @@
 import { NOTE_TYPE_LABELS, NoteStatus, NoteType } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { listNotes } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,7 +24,11 @@ export default async function NotesPage({ searchParams }: Props) {
     <>
       <div className="page-head">
         <h1>{archived ? "Archief" : "Notities"}</h1>
-        {!archived && <NewNoteButton />}
+        {!archived && (
+          <Link className="button" href="/notes/new">
+            Nieuwe notitie
+          </Link>
+        )}
       </div>
 
       <form className="filters" method="get" role="search" aria-label="Notities filteren">

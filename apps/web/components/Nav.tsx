@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookIcon, HomeIcon, MoreIcon, NoteIcon, SearchIcon, SettingsIcon } from "./icons";
+import { BookIcon, HomeIcon, MoreIcon, NoteIcon, SearchIcon, SettingsIcon, TemplateIcon } from "./icons";
 
 const MAIN = [
   { href: "/dashboard", label: "Home", Icon: HomeIcon },
@@ -16,7 +16,11 @@ function isActive(pathname: string, href: string) {
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const items = [...MAIN, { href: "/settings", label: "Instellingen", Icon: SettingsIcon }];
+  const items = [
+    ...MAIN,
+    { href: "/templates", label: "Sjablonen", Icon: TemplateIcon },
+    { href: "/settings", label: "Instellingen", Icon: SettingsIcon },
+  ];
   return (
     <nav aria-label="Hoofdmenu">
       <ul className="nav-list">
@@ -36,7 +40,7 @@ export function SidebarNav() {
 export function BottomNav() {
   const pathname = usePathname();
   const items = [...MAIN, { href: "/meer", label: "Meer", Icon: MoreIcon }];
-  const moreActive = isActive(pathname, "/meer") || isActive(pathname, "/settings");
+  const moreActive = ["/meer", "/settings", "/templates"].some((h) => isActive(pathname, h));
   return (
     <nav aria-label="Hoofdmenu" className="bottom-nav">
       <ul>

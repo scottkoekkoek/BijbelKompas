@@ -17,6 +17,9 @@ export const BookIcon = ({ size = 22 }: Props) => (
 export const NoteIcon = ({ size = 22 }: Props) => (
   <svg {...base(size)}><path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h5" /></svg>
 );
+export const TemplateIcon = ({ size = 22 }: Props) => (
+  <svg {...base(size)}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h4" /></svg>
+);
 export const SearchIcon = ({ size = 22 }: Props) => (
   <svg {...base(size)}><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></svg>
 );
