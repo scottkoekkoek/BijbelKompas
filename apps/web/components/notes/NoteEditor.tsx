@@ -16,6 +16,8 @@ import { useSyncState } from "@/components/sync/SyncStatus";
 import { getStored, listOutbox, saveLocal } from "@/lib/offline/db";
 import { editLockName, syncEngine } from "@/lib/offline/engine";
 import type { LocalContent } from "@/lib/offline/types";
+import { readerPath } from "@/lib/bible";
+import { LINKABLE_TYPES, MAX_PASSAGES_PER_BLOCK, samePassage, type LinkedPassage } from "@/lib/notes/document";
 import { parseReference, type BookInfo } from "@/lib/notes/reference";
 import { noteExtensions } from "./extensions";
 
@@ -491,6 +493,7 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
       bullet: e.isActive("bulletList"),
       ordered: e.isActive("orderedList"),
       quote: e.isActive("blockquote"),
+      ...currentBlock(e),
     }),
   });
 
@@ -500,14 +503,20 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
     </button>
   );
 
-  function insertReference(e: React.FormEvent) {
-    e.preventDefault();
+  function parse() {
     const parsed = parseReference(ref, books);
     if ("error" in parsed) {
       setError(parsed.error);
-      return;
+      return null;
     }
     setError("");
+    return parsed;
+  }
+
+  function insertReference(e: React.FormEvent) {
+    e.preventDefault();
+    const parsed = parse();
+    if (!parsed) return;
     editor
       .chain()
       .focus()
@@ -527,6 +536,31 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
         { type: "paragraph" },
       ])
       .run();
+    setRef("");
+  }
+
+  /** BK-030: links the block with the cursor to the passage, without adding a block. */
+  function linkToBlock() {
+    const parsed = parse();
+    if (!parsed) return;
+    const passage: LinkedPassage = {
+      label: parsed.label,
+      translation: defaultTranslation,
+      book: parsed.book.code,
+      startChapter: parsed.startChapter,
+      startVerse: parsed.startVerse,
+      endChapter: parsed.endChapter,
+      endVerse: parsed.endVerse,
+    };
+    if (s.passages.some((p) => samePassage(p, passage))) {
+      setError(`Deze alinea is al gekoppeld aan ${parsed.label}.`);
+      return;
+    }
+    if (s.passages.length >= MAX_PASSAGES_PER_BLOCK) {
+      setError(`Een alinea kan aan hoogstens ${MAX_PASSAGES_PER_BLOCK} passages gekoppeld worden.`);
+      return;
+    }
+    setPassages(editor, s.blockPos, [...s.passages, passage]);
     setRef("");
   }
 
@@ -557,12 +591,65 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
         <button type="submit" className="button secondary">
           Invoegen
         </button>
+        <button type="button" className="button secondary" disabled={!s.linkable} onClick={linkToBlock}
+          title={s.linkable ? undefined : "Zet de cursor eerst in een alinea"}>
+          Koppel aan alinea
+        </button>
         {error && (
           <p id={`${id}-referr`} className="field-error">
             {error}
           </p>
         )}
       </form>
+      {s.passages.length > 0 && (
+        <div className="block-links" role="group" aria-label="Koppelingen van deze alinea">
+          <span className="block-links-label">Deze alinea is gekoppeld aan</span>
+          <ul>
+            {s.passages.map((p) => (
+              <li key={`${p.book}${p.startChapter}:${p.startVerse}-${p.endChapter}:${p.endVerse}`} className="passage-chip">
+                <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                <button
+                  type="button"
+                  aria-label={`Koppeling ${p.label} verwijderen`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setPassages(editor, s.blockPos, s.passages.filter((q) => !samePassage(q, p)))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
+}
+
+/** The top-level block holding the cursor: whether it can be linked, and its current links. */
+function currentBlock(e: Editor): { linkable: boolean; passages: LinkedPassage[]; blockPos: number } {
+  const { doc, selection } = e.state;
+  const index = doc.resolve(selection.from).index(0);
+  if (index >= doc.childCount) return { linkable: false, passages: [], blockPos: -1 };
+  let pos = 0;
+  for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
+  const node = doc.child(index);
+  return {
+    linkable: LINKABLE_TYPES.has(node.type.name),
+    passages: (node.attrs.passages as LinkedPassage[] | null) ?? [],
+    blockPos: pos,
+  };
+}
+
+function setPassages(editor: Editor, pos: number, passages: LinkedPassage[]) {
+  if (pos < 0) return;
+  editor
+    .chain()
+    .focus()
+    .command(({ tr }) => {
+      const node = tr.doc.nodeAt(pos);
+      if (!node) return false;
+      tr.setNodeMarkup(pos, undefined, { ...node.attrs, passages: passages.length ? passages : null });
+      return true;
+    })
+    .run();
 }

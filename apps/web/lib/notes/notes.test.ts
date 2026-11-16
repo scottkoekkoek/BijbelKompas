@@ -74,3 +74,33 @@ describe("documents", () => {
     expect(canonicalJson({ b: 1, a: [{ y: 2, x: 1 }] })).toBe(canonicalJson({ a: [{ x: 1, y: 2 }], b: 1 }));
   });
 });
+
+describe("verse links on text blocks (BK-030)", () => {
+  const g = (v: number) => ({ label: `Johannes 3:${v}`, translation: "SV", book: "JHN", startChapter: 3, startVerse: v, endChapter: 3, endVerse: v });
+  const doc = {
+    type: "doc" as const,
+    content: [
+      { type: "paragraph", attrs: { blockId: ID1, passages: [g(16), g(17)] }, content: [{ type: "text", text: "Liefde" }] },
+      { type: "paragraph", attrs: { blockId: ID2 }, content: [{ type: "text", text: "Zonder" }] },
+    ],
+  };
+
+  it("derives one link per passage on the block", () => {
+    expect(validateDocument(doc)).toEqual([]);
+    const { links } = deriveIndexes(doc, sha);
+    expect(links).toEqual([
+      expect.objectContaining({ block_id: ID1, reference_text: "Johannes 3:16", start_verse: 16 }),
+      expect.objectContaining({ block_id: ID1, reference_text: "Johannes 3:17", start_verse: 17 }),
+    ]);
+  });
+
+  it("refuses malformed or too many links", () => {
+    const bad = (passages: unknown, type = "paragraph") =>
+      validateDocument({ type: "doc", content: [{ type, attrs: { blockId: ID1, passages } }] });
+    expect(bad([{ label: "x" }])).toContain("Blok 1: ongeldige koppeling");
+    expect(bad("Joh 3:16")).toContain("Blok 1: ongeldige koppeling");
+    expect(bad(Array.from({ length: 11 }, (_, i) => g(i + 1)))).toContain("Blok 1: hoogstens 10 koppelingen per blok");
+    expect(bad([g(1)], "horizontalRule")).toContain("Blok 1: dit bloktype kan niet aan verzen gekoppeld worden");
+    expect(bad(null)).toEqual([]);
+  });
+});
