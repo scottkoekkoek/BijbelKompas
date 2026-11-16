@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { NoteCollections } from "@/components/collections/NoteCollections";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
 import { LocalNote } from "@/components/notes/LocalNote";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
+import { collectionsOfNote, listCollections, questionsOfNote } from "@/lib/collections/data";
+import { buildTree, flatten } from "@/lib/collections/tree";
 import { getNote, getSermonSuggestions } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,7 +29,14 @@ export default async function NotePage({ params }: Props) {
   const r = await load((await params).id);
   if (!r?.note) notFound();
   const { supabase, note } = r;
-  const [books, translations, suggestions] = await Promise.all([getBooks(supabase), getTranslations(supabase), getSermonSuggestions(supabase)]);
+  const [books, translations, suggestions, collections, memberOf, questions] = await Promise.all([
+    getBooks(supabase),
+    getTranslations(supabase),
+    getSermonSuggestions(supabase),
+    listCollections(supabase),
+    collectionsOfNote(supabase, note.id),
+    questionsOfNote(supabase, note.id),
+  ]);
   const translation = pickTranslation(translations, undefined, null);
 
   return (
@@ -51,6 +61,12 @@ export default async function NotePage({ params }: Props) {
         </Link>
         <ArchiveButton id={note.id} archived={note.archived} />
       </div>
+      <NoteCollections
+        noteId={note.id}
+        collections={flatten(buildTree(collections)).map(({ id, name, depth }) => ({ id, name, depth }))}
+        memberOf={memberOf}
+        questions={questions}
+      />
     </article>
   );
 }

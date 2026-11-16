@@ -346,7 +346,22 @@ class SyncEngine {
       meta = await setMeta({ index, cursor });
       if (!r.hasMore) break;
     }
+    meta = await this.refreshPinnedCollections(meta);
     await this.refreshOfflineCopy(meta);
+  }
+
+  /** Sprint 7: which notes are in the collections kept offline now (a deleted collection drops out). */
+  private async refreshPinnedCollections(meta: Meta): Promise<Meta> {
+    const asked = Object.keys(meta.pinnedCollections);
+    if (asked.length === 0) return meta;
+    const r = await this.request<{ collections: { id: string; name: string; noteIds: string[] }[] }>(
+      `/api/v1/collections/offline?ids=${asked.slice(0, 50).join(",")}`,
+    );
+    const fresh = await getMeta(); // pinned or unpinned meanwhile: that choice wins
+    const next: Meta["pinnedCollections"] = {};
+    for (const c of r.collections) if (fresh.pinnedCollections[c.id]) next[c.id] = { name: c.name, noteIds: c.noteIds };
+    for (const [id, v] of Object.entries(fresh.pinnedCollections)) if (!asked.includes(id)) next[id] = v;
+    return setMeta({ pinnedCollections: next });
   }
 
   /** Downloads what should be offline and removes what no longer needs to be (never unsynced text). */
@@ -362,6 +377,7 @@ class SyncEngine {
     const keep = new Set([
       ...recent,
       ...stored.filter((s) => s.pinned || s.openedAt > weekAgo).map((s) => s.id),
+      ...Object.values(meta.pinnedCollections).flatMap((c) => c.noteIds),
       ...dirty,
     ]);
     const byId = new Map(stored.map((s) => [s.id, s]));

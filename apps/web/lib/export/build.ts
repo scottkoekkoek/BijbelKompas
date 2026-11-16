@@ -40,7 +40,7 @@ type RevisionRow = { note_id: string; revision_number: number; reason: string; c
 type SermonRow = { note_id: string; service_type: string | null; speaker: { name: string } | null; organization: { name: string } | null; series: { name: string } | null };
 
 export async function collectExport(db: Db, now = new Date()): Promise<ExportData> {
-  const [notes, docs, revisions, sermons, templates, prefs, position] = await Promise.all([
+  const [notes, docs, revisions, sermons, templates, prefs, position, collections, collectionItems, questions, questionNotes, questionPassages] = await Promise.all([
     all<NoteRow>((a, b) =>
       db.from("notes")
         .select("id, title, note_type, status, event_date, created_at, updated_at, completed_at, archived_at, document_version")
@@ -66,6 +66,25 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     ),
     db.from("user_preferences").select("theme, bible_font_size, offline_recent_limit, ai_enabled, auto_analysis, editor_preferences, translation:bible_translations(code)").maybeSingle(),
     db.from("reading_positions").select("chapter_number, updated_at, translation:bible_translations(code), book:bible_books(book_code)").maybeSingle(),
+    all<unknown>((a, b) =>
+      db.from("collections")
+        .select("id, parent_id, name, collection_type, description, created_at, updated_at, archived_at")
+        .order("created_at").order("id").range(a, b),
+    ),
+    all<unknown>((a, b) =>
+      db.from("collection_items").select("collection_id, note_id, position, created_at").order("collection_id").order("position").order("note_id").range(a, b),
+    ),
+    all<unknown>((a, b) =>
+      db.from("questions")
+        .select("id, title, description, status, answer, created_at, updated_at, resolved_at")
+        .order("created_at").order("id").range(a, b),
+    ),
+    all<unknown>((a, b) => db.from("question_notes").select("question_id, note_id, created_at").order("question_id").order("note_id").range(a, b)),
+    all<unknown>((a, b) =>
+      db.from("question_passages")
+        .select("id, question_id, label, translation, book, start_chapter, start_verse, end_chapter, end_verse, created_at")
+        .order("question_id").order("id").range(a, b),
+    ),
   ]);
   if (prefs.error) throw prefs.error;
   if (position.error) throw position.error;
@@ -109,6 +128,11 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     templates,
     preferences: prefs.data,
     readingPosition: position.data,
+    collections,
+    collectionItems,
+    questions,
+    questionNotes,
+    questionPassages,
   };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookIcon, HomeIcon, MoreIcon, NoteIcon, SearchIcon, SettingsIcon, TemplateIcon } from "./icons";
+import { BookIcon, FolderIcon, HomeIcon, MoreIcon, NoteIcon, QuestionIcon, SearchIcon, SettingsIcon, TemplateIcon, TimelineIcon } from "./icons";
 
 const MAIN = [
   { href: "/dashboard", label: "Home", Icon: HomeIcon },
@@ -18,6 +18,9 @@ export function SidebarNav() {
   const pathname = usePathname();
   const items = [
     ...MAIN,
+    { href: "/collections", label: "Collecties", Icon: FolderIcon },
+    { href: "/questions", label: "Vragen", Icon: QuestionIcon },
+    { href: "/timeline", label: "Tijdlijn", Icon: TimelineIcon },
     { href: "/templates", label: "Sjablonen", Icon: TemplateIcon },
     { href: "/settings", label: "Instellingen", Icon: SettingsIcon },
   ];
@@ -40,7 +43,7 @@ export function SidebarNav() {
 export function BottomNav() {
   const pathname = usePathname();
   const items = [...MAIN, { href: "/meer", label: "Meer", Icon: MoreIcon }];
-  const moreActive = ["/meer", "/settings", "/templates"].some((h) => isActive(pathname, h));
+  const moreActive = ["/meer", "/settings", "/templates", "/collections", "/questions", "/timeline", "/sync"].some((h) => isActive(pathname, h));
   return (
     <nav aria-label="Hoofdmenu" className="bottom-nav">
       <ul>

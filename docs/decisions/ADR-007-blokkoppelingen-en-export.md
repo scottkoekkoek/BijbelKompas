@@ -32,8 +32,8 @@ Onder Instellingen staat "Alles exporteren". Dat geeft een zip-bestand met:
 
 - `bijbelkompas.json`, volledig en machineleesbaar (`format: bijbelkompas-export`, `version: 1`).
   Het bevat de notities met metadata, preekgegevens, het volledige document, de afgeleide
-  Bijbelkoppelingen, **alle versies** met hun inhoud, en verder de sjablonen, voorkeuren en de
-  leespositie.
+  Bijbelkoppelingen, **alle versies** met hun inhoud, en verder de sjablonen, voorkeuren, de
+  leespositie en (sinds Sprint 7, ADR-008) collecties en onderzoeksvragen.
 - `notities/*.md`: elke notitie als leesbaar Markdown, met koppelingen en een lijst van versies.
 - `LEESMIJ.md`: uitleg over het bestand.
 

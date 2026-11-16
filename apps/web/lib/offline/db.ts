@@ -18,6 +18,8 @@ export type Meta = {
   defaultTranslation: string;
   /** what the server has: per note its last change, version and archive state */
   index: Record<string, { updatedAt: string; version: number; archived: boolean; title: string }>;
+  /** Sprint 7: collections kept offline, with the notes in them (and in their subcollections) */
+  pinnedCollections: Record<string, { name: string; noteIds: string[] }>;
 };
 
 interface Schema extends DBSchema {
@@ -63,6 +65,7 @@ const DEFAULT_META: Meta = {
   books: [],
   defaultTranslation: "SV",
   index: {},
+  pinnedCollections: {},
 };
 
 export async function getMeta(): Promise<Meta> {
@@ -162,6 +165,18 @@ export async function setPinned(noteId: string, pinned: boolean): Promise<void> 
   const tx = d.transaction("notes", "readwrite");
   const prev = await tx.store.get(noteId);
   if (prev) await tx.store.put({ ...prev, pinned });
+  await tx.done;
+}
+
+/** Sprint 7: keep a collection offline (its notes are fetched on the next sync), or stop doing so. */
+export async function setCollectionPinned(id: string, pin: { name: string; noteIds: string[] } | null): Promise<void> {
+  const d = await db();
+  const tx = d.transaction("meta", "readwrite");
+  const current = { ...DEFAULT_META, ...((await tx.store.get("meta")) as Partial<Meta> | undefined) };
+  const pinnedCollections = { ...current.pinnedCollections };
+  if (pin) pinnedCollections[id] = pin;
+  else delete pinnedCollections[id];
+  await tx.store.put({ ...current, pinnedCollections }, "meta");
   await tx.done;
 }
 

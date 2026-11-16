@@ -37,6 +37,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const { data: chapterNotes } = data
     ? await supabase.rpc("notes_for_chapter", { p_translation: data.translation.code, p_book: book.code, p_chapter: chapter })
     : { data: null };
+  // BK-050: research questions linked to verses of this chapter
+  const { data: chapterQuestions } = data
+    ? await supabase.rpc("passage_questions", { p_translation: data.translation.code, p_book: book.code, p_chapter: chapter, p_start_verse: 1, p_end_verse: 999 })
+    : { data: null };
+  const questions = (chapterQuestions ?? []) as { question_id: string; title: string; label: string }[];
   const noteRows = (chapterNotes ?? []) as { verse_number: number; note_id: string; title: string }[];
   const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
   const references = translations.filter((t) => !t.hasText && t.externalUrl);
@@ -97,6 +102,20 @@ export default async function ReaderPage({ params, searchParams }: Props) {
             {notesInChapter.map((n) => (
               <li key={n.note_id}>
                 <Link href={`/notes/${n.note_id}`}>{n.title || "Naamloze notitie"}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {questions.length > 0 && (
+        <section className="chapter-notes" aria-labelledby="chapter-questions-title">
+          <h2 id="chapter-questions-title">Vragen bij dit hoofdstuk</h2>
+          <ul>
+            {questions.map((q) => (
+              <li key={q.question_id}>
+                <Link href={`/questions/${q.question_id}`}>{q.title}</Link>
+                <span className="muted"> · {q.label}</span>
               </li>
             ))}
           </ul>
