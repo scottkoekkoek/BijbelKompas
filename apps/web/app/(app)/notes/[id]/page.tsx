@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
-import { NoteEditor } from "@/components/notes/NoteEditor";
+import { LocalNote } from "@/components/notes/LocalNote";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { getNote, getSermonSuggestions } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
@@ -38,7 +38,7 @@ export default async function NotePage({ params }: Props) {
         <p className="alert ok">Deze notitie staat in het archief. Je kunt hem nog steeds lezen en bewerken.</p>
       )}
       <h1 className="visually-hidden">{note.title || "Naamloze notitie"}</h1>
-      <NoteEditor
+      <LocalNote
         key={note.id}
         note={note}
         books={books.map((b) => ({ code: b.code, name: b.name, chapterCount: b.chapterCount }))}

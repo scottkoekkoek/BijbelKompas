@@ -22,7 +22,7 @@ import { buildDocument, findBuiltin } from "./templates";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
-type NoteRow = {
+export type NoteRow = {
   id: string;
   title: string;
   note_type: NoteType;
@@ -51,7 +51,7 @@ export function toSummary(r: NoteRow): NoteSummary {
   };
 }
 
-const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const documentHash = (doc: NoteDocument) => sha256(canonicalJson(doc));
 
 export type Filters = { q?: string; type?: NoteType; status?: NoteStatus; archived?: boolean };

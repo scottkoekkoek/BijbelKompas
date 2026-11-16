@@ -12,6 +12,10 @@ import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/r
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useSyncState } from "@/components/sync/SyncStatus";
+import { getStored, listOutbox, saveLocal } from "@/lib/offline/db";
+import { editLockName, syncEngine } from "@/lib/offline/engine";
+import type { LocalContent } from "@/lib/offline/types";
 import { parseReference, type BookInfo } from "@/lib/notes/reference";
 import { noteExtensions } from "./extensions";
 
@@ -19,34 +23,54 @@ export const AUTOSAVE_MS = 1500;
 export const PAUSE_MS = 120_000; // "schrijfpauze": 2 minutes without typing makes a revision
 const RETRY_MS = 10_000;
 
-type SaveState = "opgeslagen" | "wijzigingen" | "opslaan" | "offline" | "fout" | "conflict";
+type SaveState = "opgeslagen" | "lokaal" | "wijzigingen" | "opslaan" | "fout" | "conflict";
 type SaveOpts = { reason?: Exclude<RevisionReason, "herstel">; status?: NoteStatus };
 
 const STATE_TEXT: Record<SaveState, string> = {
   opgeslagen: "Opgeslagen",
+  lokaal: "Lokaal opgeslagen",
   wijzigingen: "Wijzigingen…",
   opslaan: "Opslaan…",
-  offline: "Niet opgeslagen: geen verbinding. Je tekst blijft staan; we proberen het opnieuw.",
   fout: "Niet opgeslagen.",
-  conflict: "Niet opgeslagen: conflict.",
+  conflict: "Conflict: elders gewijzigd.",
 };
 
 export type Suggestions = { speakers: string[]; organizations: string[]; series: string[] };
-type Props = { note: Note; books: BookInfo[]; defaultTranslation: string; suggestions: Suggestions };
+type Props = {
+  note: Note;
+  books: BookInfo[];
+  defaultTranslation: string;
+  suggestions: Suggestions;
+  /** the text on screen is newer than the server's (it came from this browser's storage) */
+  unsynced?: boolean;
+  /** when the text was last stored in this browser, to notice edits made in another tab */
+  localStamp?: number | null;
+  /** offline screen: no server pages, and notes open in place */
+  offline?: boolean;
+  onOpenNote?: (id: string) => void;
+};
 
-export function NoteEditor({ note, books, defaultTranslation, suggestions }: Props) {
+/**
+ * BK-025/026: local-first editor. Every save goes to this browser's storage first ("Lokaal
+ * opgeslagen") and the sync engine sends it to the server ("Opgeslagen"). A change made elsewhere
+ * is never overwritten: the writer chooses between a conflict copy and the newest version.
+ */
+export function NoteEditor({ note, books, defaultTranslation, suggestions, unsynced = false, localStamp = null, offline = false, onOpenNote }: Props) {
   const router = useRouter();
   const ids = useId();
+  const sync = useSyncState();
   const [title, setTitle] = useState(note.title);
   const [noteType, setNoteType] = useState<NoteType>(note.noteType);
   const [eventDate, setEventDate] = useState(note.eventDate ?? "");
   const [sermon, setSermon] = useState<SermonDetails>(note.sermon);
   const [status, setStatus] = useState<NoteStatus>(note.status);
-  const [saveState, setSaveState] = useState<SaveState>("opgeslagen");
+  const [saveState, setSaveState] = useState<SaveState>(unsynced ? "lokaal" : "opgeslagen");
   const [message, setMessage] = useState("");
   const [revision, setRevision] = useState(note.currentRevision);
+  const [elsewhere, setElsewhere] = useState<"no" | "open" | "closed">("no");
 
   // Mutable save bookkeeping (refs: timers and in-flight saves must not trigger renders).
+  /** the server version the text on screen builds on */
   const version = useRef(note.documentVersion);
   const changes = useRef(0);
   const saved = useRef(0);
@@ -54,6 +78,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
   const inFlight = useRef(false);
   const pending = useRef<SaveOpts | null>(null);
   const conflict = useRef(false);
+  const readOnly = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pauseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const retryTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -65,7 +90,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
   const saveRef = useRef<(opts?: SaveOpts) => Promise<void>>(async () => undefined);
 
   const markChanged = useCallback(() => {
-    if (conflict.current) return;
+    if (conflict.current || readOnly.current) return;
     changes.current += 1;
     revisionDirty.current = true;
     setSaveState("wijzigingen");
@@ -92,6 +117,44 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
     editorRef.current = editor;
   }, [editor]);
 
+  // One editor per note per browser: a second tab shows the note read-only (two tabs writing into
+  // the same local copy could otherwise lose text without anyone noticing).
+  useEffect(() => {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (!locks) return;
+    const abort = new AbortController();
+    let release: () => void = () => undefined;
+    const hold = (lock: Lock | null) =>
+      lock ? new Promise<void>((resolve) => (release = resolve)) : Promise.resolve();
+    locks
+      .request(editLockName(note.id), { ifAvailable: true }, async (lock) => {
+        if (lock) return hold(lock);
+        readOnly.current = true;
+        setElsewhere("open");
+        // wait until the other tab closes; then this tab may continue if nothing changed meanwhile
+        locks
+          .request(editLockName(note.id), { signal: abort.signal }, async (l) => {
+            const stored = await getStored(note.id).catch(() => undefined);
+            if ((stored?.localUpdatedAt ?? null) === localStamp && (stored?.server?.documentVersion ?? 0) === version.current) {
+              readOnly.current = false;
+              setElsewhere("no");
+            } else {
+              setElsewhere("closed");
+            }
+            return hold(l);
+          })
+          .catch(() => undefined);
+      })
+      .catch(() => undefined);
+    return () => {
+      abort.abort();
+      release();
+    };
+  }, [note.id, localStamp]);
+  useEffect(() => {
+    editor?.setEditable(elsewhere === "no");
+  }, [editor, elsewhere]);
+
   // BK-038: a search result links to /notes/{id}#blok-{blockId}; scroll to that block and mark it.
   // The mark is a style rule rather than a class, because the editor may redraw the block.
   const [foundBlock, setFoundBlock] = useState<string | null>(null);
@@ -111,66 +174,76 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
     };
   }, [editor]);
 
+  const currentContent = useCallback((): LocalContent | null => {
+    const ed = editorRef.current;
+    if (!ed) return null;
+    const m = meta.current;
+    return { title: m.title, noteType: m.noteType, eventDate: m.eventDate || null, sermon: m.sermon, document: ed.getJSON() as LocalContent["document"] };
+  }, []);
+
+  /** Fallback when this browser cannot store anything (storage full or blocked): straight to the server. */
+  const saveDirect = useCallback(
+    async (content: LocalContent, opts: SaveOpts, snapshot: number) => {
+      try {
+        const res = await fetch(`/api/v1/notes/${note.id}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ baseVersion: version.current, ...content, ...opts }),
+        });
+        if (res.ok) {
+          const body = (await res.json()) as Note;
+          version.current = body.documentVersion;
+          saved.current = snapshot;
+          setStatus(body.status);
+          setRevision(body.currentRevision);
+          setSaveState(changes.current === saved.current ? "opgeslagen" : "wijzigingen");
+        } else if (res.status === 409) {
+          conflict.current = true;
+          setSaveState("conflict");
+        } else {
+          setSaveState("fout");
+          const body = await res.json().catch(() => null);
+          setMessage(body?.error?.message ?? "De notitie kon niet worden opgeslagen.");
+        }
+      } catch {
+        setSaveState("fout");
+        setMessage("Niet opgeslagen: geen verbinding en deze browser kan niets lokaal bewaren. Je tekst blijft staan; we proberen het opnieuw.");
+        retryTimer.current = setTimeout(() => void saveRef.current(opts), RETRY_MS);
+      }
+    },
+    [note.id],
+  );
+
   const save = useCallback(
     async (opts: SaveOpts = {}) => {
-      const ed = editorRef.current;
-      if (!ed || conflict.current) return;
+      if (conflict.current || readOnly.current) return;
       if (inFlight.current) {
         pending.current = { ...pending.current, ...opts };
         return;
       }
+      const content = currentContent();
+      if (!content) return;
       clearTimeout(autosaveTimer.current);
       clearTimeout(retryTimer.current);
       const snapshot = changes.current;
       inFlight.current = true;
       setSaveState("opslaan");
       try {
-        const res = await fetch(`/api/v1/notes/${note.id}`, {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            baseVersion: version.current,
-            title: meta.current.title,
-            noteType: meta.current.noteType,
-            eventDate: meta.current.eventDate || null,
-            sermon: meta.current.sermon,
-            document: ed.getJSON(),
-            ...opts,
-          }),
-        });
-        if (res.ok) {
-          const body = (await res.json()) as Note;
-          version.current = body.documentVersion;
-          saved.current = snapshot;
-          if (opts.reason && snapshot === changes.current) revisionDirty.current = false;
-          setStatus(body.status);
-          setRevision(body.currentRevision);
-          setMessage(
-            opts.status === "afgerond"
-              ? "Notitie afgerond en als versie bewaard."
-              : opts.reason === "handmatig"
-                ? "Opgeslagen als nieuwe versie."
-                : "",
-          );
-          setSaveState(changes.current === saved.current ? "opgeslagen" : "wijzigingen");
-        } else if (res.status === 409) {
-          conflict.current = true;
-          clearTimeout(pauseTimer.current);
-          setSaveState("conflict");
-        } else if (res.status === 401) {
-          setSaveState("fout");
-          setMessage("Je bent uitgelogd. Log in een ander tabblad opnieuw in; je tekst blijft hier staan.");
-          retryTimer.current = setTimeout(() => void saveRef.current(opts), RETRY_MS);
-        } else if (res.status === 422) {
-          setSaveState("fout");
-          const body = await res.json().catch(() => null);
-          setMessage(body?.error?.message ?? "De notitie bevat iets wat niet kan worden opgeslagen.");
-        } else {
-          throw new Error(String(res.status));
-        }
+        await saveLocal(note.id, { content, ...opts, baseVersion: version.current > 0 ? version.current : null });
+        saved.current = snapshot;
+        if (opts.reason && snapshot === changes.current) revisionDirty.current = false;
+        if (opts.status) setStatus(opts.status);
+        setMessage(
+          opts.status === "afgerond"
+            ? "Afgerond. Wordt als versie bewaard zodra de notitie is verstuurd."
+            : opts.reason === "handmatig"
+              ? "Wordt als nieuwe versie bewaard zodra de notitie is verstuurd."
+              : "",
+        );
+        setSaveState(changes.current === saved.current ? "lokaal" : "wijzigingen");
+        syncEngine.syncSoon(opts.reason || opts.status ? 0 : 300);
       } catch {
-        setSaveState("offline");
-        retryTimer.current = setTimeout(() => void saveRef.current(opts), RETRY_MS);
+        await saveDirect(content, opts, snapshot);
       } finally {
         inFlight.current = false;
       }
@@ -182,11 +255,39 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
         autosaveTimer.current = setTimeout(() => void saveRef.current(), AUTOSAVE_MS);
       }
     },
-    [note.id],
+    [note.id, currentContent, saveDirect],
   );
   useEffect(() => {
     saveRef.current = save;
   }, [save]);
+
+  // What the sync engine reports for this note (also when another tab sent it).
+  useEffect(
+    () =>
+      syncEngine.onNote(note.id, (e) => {
+        if (e.type === "synced") {
+          version.current = e.note.documentVersion;
+          if (e.stillPending) return;
+          setStatus(e.note.status);
+          setRevision(e.note.currentRevision);
+          if (e.op.status === "afgerond") setMessage("Notitie afgerond en als versie bewaard.");
+          else if (e.op.reason === "handmatig") setMessage("Opgeslagen als nieuwe versie.");
+          setSaveState((s) => (s === "lokaal" ? "opgeslagen" : s));
+        } else if (e.type === "conflict") {
+          conflict.current = true;
+          clearTimeout(autosaveTimer.current);
+          clearTimeout(pauseTimer.current);
+          setSaveState("conflict");
+        } else {
+          setSaveState("fout");
+          setMessage(e.message);
+        }
+      }),
+    [note.id],
+  );
+  useEffect(() => {
+    if (unsynced) syncEngine.syncSoon(0);
+  }, [unsynced]);
 
   // Metadata changes autosave as well.
   const first = useRef(true);
@@ -198,7 +299,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
     markChanged();
   }, [title, noteType, eventDate, sermon, markChanged]);
 
-  // Warn before leaving with unsaved text; save when the tab is hidden.
+  // Warn before leaving with text not yet stored; store it when the tab is hidden.
   useEffect(() => {
     const beforeUnload = (e: BeforeUnloadEvent) => {
       if (changes.current !== saved.current) e.preventDefault();
@@ -217,31 +318,53 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
     };
   }, []);
 
+  /** Keeps the text on screen as a new note; the original follows the server again (ADR-000). */
   async function keepCopy() {
-    const ed = editorRef.current;
-    if (!ed) return;
-    const res = await fetch("/api/v1/notes", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: `${meta.current.title || "Naamloos"} (conflictkopie)`.slice(0, 200),
-        noteType: meta.current.noteType,
-        eventDate: meta.current.eventDate || null,
-        document: ed.getJSON(),
-      }),
-    });
-    if (res.ok) {
+    const content = currentContent();
+    if (!content) return;
+    try {
+      await saveLocal(note.id, { content });
+      const copyId = await syncEngine.resolveAsCopy(note.id);
+      if (!copyId) throw new Error("no copy");
       changes.current = saved.current; // nothing unsaved any more: it lives in the copy
-      const copy = (await res.json()) as { id: string };
-      router.push(`/notes/${copy.id}`);
-    } else {
+      if (onOpenNote) return onOpenNote(copyId);
+      await syncEngine.syncNow();
+      const waiting = (await listOutbox()).some((e) => e.noteId === copyId);
+      router.push(waiting ? `/offline?notitie=${copyId}` : `/notes/${copyId}`);
+    } catch {
       setMessage("De kopie kon niet worden bewaard. Kopieer je tekst handmatig voordat je verdergaat.");
     }
   }
 
+  async function loadLatest() {
+    await syncEngine.discardLocal(note.id).catch(() => undefined);
+    changes.current = saved.current;
+    window.location.reload();
+  }
+
+  const waitingText =
+    saveState === "lokaal" && sync.status === "offline"
+      ? "Lokaal opgeslagen · wordt verstuurd zodra er verbinding is"
+      : saveState === "lokaal" && sync.status === "auth"
+        ? "Lokaal opgeslagen · log opnieuw in om te versturen"
+        : STATE_TEXT[saveState];
+  const locked = saveState === "conflict" || elsewhere !== "no";
+
   return (
     <div className="note-editor">
-      <div className="note-meta">
+      {elsewhere !== "no" && (
+        <div className="alert error" role="alert">
+          {elsewhere === "open" ? (
+            <p>Deze notitie is al geopend in een ander tabblad. Schrijf daar verder, of sluit dat tabblad.</p>
+          ) : (
+            <>
+              <p>Het andere tabblad is gesloten. Laad de notitie opnieuw om hier verder te schrijven.</p>
+              <button type="button" className="button" onClick={() => window.location.reload()}>Opnieuw laden</button>
+            </>
+          )}
+        </div>
+      )}
+      <fieldset className="note-meta plain" disabled={elsewhere !== "no"}>
         <div className="field note-title">
           <label htmlFor={`${ids}-title`}>Titel</label>
           <input id={`${ids}-title`} type="text" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="Naamloze notitie" />
@@ -260,10 +383,10 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
           <label htmlFor={`${ids}-date`}>Datum</label>
           <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
         </div>
-      </div>
+      </fieldset>
 
       {noteType === "preek" && (
-        <fieldset className="sermon-fields">
+        <fieldset className="sermon-fields" disabled={elsewhere !== "no"}>
           <legend>Preekgegevens</legend>
           <SermonField id={`${ids}-speaker`} label="Spreker" value={sermon.speaker} options={suggestions.speakers} max={120}
             onChange={(v) => setSermon((s) => ({ ...s, speaker: v }))} />
@@ -279,9 +402,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
       <div className="note-status-row">
         <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
         <span className={`save-state ${saveState}`} role="status" aria-live="polite">
-          {STATE_TEXT[saveState]}
+          {waitingText}
         </span>
-        {revision > 0 && (
+        {revision > 0 && !offline && (
           <Link href={`/notes/${note.id}/versies`} className="muted-link">
             {revision} {revision === 1 ? "versie" : "versies"}
           </Link>
@@ -291,16 +414,18 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
       {saveState === "conflict" && (
         <div className="alert error" role="alert">
           <p>
-            Deze notitie is intussen ergens anders gewijzigd (bijvoorbeeld in een ander tabblad). Je tekst hier is
-            <strong> niet</strong> overschreven en ook niet opgeslagen.
+            Deze notitie is intussen ergens anders gewijzigd (op een ander apparaat of in een ander tabblad). Je tekst
+            hier is <strong>niet</strong> overschreven en staat veilig op dit apparaat.
           </p>
           <div className="button-row">
-            <button type="button" className="button" onClick={keepCopy}>
+            <button type="button" className="button" onClick={() => void keepCopy()}>
               Bewaar mijn tekst als conflictkopie
             </button>
-            <button type="button" className="button secondary" onClick={() => window.location.reload()}>
-              Nieuwste versie laden (mijn wijzigingen hier vervallen)
-            </button>
+            {!offline && (
+              <button type="button" className="button secondary" onClick={() => void loadLatest()}>
+                Nieuwste versie laden (mijn wijzigingen hier vervallen)
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -308,20 +433,20 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions }: Pro
       {foundBlock && (
         <style>{`.note-body [data-block-id="${foundBlock}"] { animation: found 6s ease-out; border-radius: 4px; }`}</style>
       )}
-      {editor && <Toolbar editor={editor} books={books} defaultTranslation={defaultTranslation} />}
+      {editor && elsewhere === "no" && <Toolbar editor={editor} books={books} defaultTranslation={defaultTranslation} />}
       <EditorContent editor={editor} className="note-content" />
 
       {message && <p className="copy-status">{message}</p>}
       <div className="button-row note-actions">
-        <button type="button" className="button secondary" disabled={saveState === "conflict"} onClick={() => void save({ reason: "handmatig" })}>
+        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })}>
           Opslaan als versie
         </button>
         {status === "concept" ? (
-          <button type="button" className="button" disabled={saveState === "conflict"} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
+          <button type="button" className="button" disabled={locked} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
             Afronden
           </button>
         ) : (
-          <button type="button" className="button secondary" disabled={saveState === "conflict"} onClick={() => void save({ status: "concept" })}>
+          <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ status: "concept" })}>
             Terugzetten naar concept
           </button>
         )}
