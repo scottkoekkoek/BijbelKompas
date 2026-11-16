@@ -55,6 +55,13 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: End-to-end- en toegankelijkheidstests
         run: pnpm test:e2e
+      - name: Statenvertaling-import proberen op de lokale stack (twee keer, moet herhaalbaar zijn)
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          scripts/import-statenvertaling.sh
+          scripts/import-statenvertaling.sh
+          psql "$SUPABASE_DB_URL" -At -c "select count(*) from public.translation_segments s join public.bible_translations t on t.id = s.translation_id where t.code = 'SV' and t.enabled" | grep -qx 31174
       - name: Back-up en herstelproef op de lokale stack
         run: |
           OUT_DIR=$RUNNER_TEMP/backup NO_ENCRYPT=1 \

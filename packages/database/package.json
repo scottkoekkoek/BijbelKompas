@@ -6,8 +6,9 @@
   "scripts": {
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'database tests: run pnpm test:db with the local Supabase stack running'",
-    "test:db": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.unit.config.ts",
+    "test:db": "vitest run --config vitest.config.ts",
+    "import:sv": "node scripts/import-statenvertaling.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

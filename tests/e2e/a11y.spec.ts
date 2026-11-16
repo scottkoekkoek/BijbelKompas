@@ -14,7 +14,7 @@ test("login page has no serious accessibility problems", async ({ page }) => {
   await expectNoSeriousViolations(page);
 });
 
-for (const path of ["/dashboard", "/settings", "/bible"]) {
+for (const path of ["/dashboard", "/settings", "/bible", "/bible/GEN", "/bible/GEN/1"]) {
   test(`${path} has no serious accessibility problems`, async ({ page }) => {
     await login(page, path);
     await expectNoSeriousViolations(page);
