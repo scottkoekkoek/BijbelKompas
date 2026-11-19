@@ -4,7 +4,11 @@ import { ImportExport } from "@/components/settings/ImportExport";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fromRow, PREFERENCE_COLUMNS, type PreferencesRow } from "@/lib/preferences";
+import { getBudget } from "@/lib/ai/data";
+import { configuredProvider } from "@/lib/ai/provider";
 import { PreferencesForm } from "./PreferencesForm";
+
+const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 
 export const metadata: Metadata = { title: "Instellingen" };
 
@@ -18,12 +22,34 @@ export default async function SettingsPage() {
     supabase.from("bible_translations").select("id, name, rights_status").order("name"),
   ]);
   if (prefs.error || !prefs.data) throw new Error("Voorkeuren konden niet worden geladen.");
+  const budget = await getBudget(supabase);
+  const provider = configuredProvider();
+  const month = new Date(`${budget.month}T12:00:00Z`).toLocaleDateString("nl-NL", { month: "long", year: "numeric" });
 
   return (
     <>
       <h1>Instellingen</h1>
       <p className="page-intro">Ingelogd als {auth.user.email}</p>
       <PreferencesForm initial={fromRow(prefs.data as PreferencesRow)} translations={translations.data ?? []} />
+
+      <section className="settings-section" aria-labelledby="ai-budget-heading">
+        <h2 id="ai-budget-heading">AI-budget</h2>
+        <p>
+          {month}: {eur.format(budget.usedEur)} van {eur.format(budget.limitEur)} gebruikt.
+        </p>
+        <meter className="ai-meter" min={0} max={budget.limitEur} low={budget.stopAtEur * 0.8} high={budget.stopAtEur} optimum={0} value={budget.usedEur} aria-label="AI-budget gebruikt deze maand">
+          {eur.format(budget.usedEur)}
+        </meter>
+        <p className="page-intro">
+          Nieuwe AI-taken stoppen bij {eur.format(budget.stopAtEur)}, zodat de maand onder de {eur.format(budget.limitEur)} blijft.
+          {" "}
+          {provider
+            ? provider.external
+              ? `AI-aanbieder: ${provider.name}.`
+              : "Er is alleen een testaanbieder ingesteld: er gaat niets naar buiten."
+            : "Er is nog geen AI-aanbieder gekozen: er wordt niets verstuurd."}
+        </p>
+      </section>
 
       <section className="settings-section" aria-labelledby="export-heading">
         <h2 id="export-heading">Je gegevens exporteren</h2>

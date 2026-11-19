@@ -110,7 +110,11 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
           />
           <label htmlFor="auto">Analyse automatisch starten na afronden</label>
         </div>
-        <span className="hint">AI is nog niet gebouwd; deze keuze wordt alvast bewaard.</span>
+        <span className="hint">
+          Met AI-hulp kun je na afronden verbanden met je andere notities laten voorstellen. Uit betekent: er wordt
+          niets naar een AI-aanbieder gestuurd en gewoon zoeken werkt gewoon. Automatisch starten komt zodra er een
+          aanbieder is gekozen.
+        </span>
       </div>
 
       <button type="submit" className="button" disabled={status.kind === "saving"}>
