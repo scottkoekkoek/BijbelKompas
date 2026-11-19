@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CompassIcon } from "@/components/icons";
+import { BrandMark } from "@/components/icons";
 import { BottomNav, SidebarNav } from "@/components/Nav";
 import { ThemeSync } from "@/components/ThemeSync";
 import { LogoutButton } from "@/components/sync/LogoutButton";
@@ -26,8 +26,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="shell">
         <aside className="sidebar">
           <Link href="/dashboard" className="brand">
-            <CompassIcon />
-            BijbelKompas
+            <BrandMark />
+            <span className="brand-text">BijbelKompas</span>
           </Link>
           <SidebarNav />
           <div className="sidebar-footer">
@@ -35,12 +35,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <LogoutButton />
           </div>
         </aside>
-        <main id="inhoud" className="main" tabIndex={-1}>
-          <div className="mobile-sync">
-            <SyncIndicator />
-          </div>
-          {children}
-        </main>
+        <div className="shell-content">
+          <header className="topbar">
+            <Link href="/dashboard" className="brand">
+              <BrandMark />
+              <span className="brand-text">BijbelKompas</span>
+            </Link>
+            <div className="mobile-sync-slot">
+              <SyncIndicator />
+            </div>
+          </header>
+          <main id="inhoud" className="main" tabIndex={-1}>
+            {children}
+          </main>
+        </div>
       </div>
       <BottomNav />
     </>

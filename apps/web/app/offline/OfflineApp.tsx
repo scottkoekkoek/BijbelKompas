@@ -5,6 +5,7 @@
  */
 import { EMPTY_SERMON, type Note } from "@bk/schemas";
 import { useCallback, useEffect, useState } from "react";
+import { BrandMark } from "@/components/icons";
 import { NoteEditor } from "@/components/notes/NoteEditor";
 import { SyncIndicator, SyncStarter } from "@/components/sync/SyncStatus";
 import { emptyDocument } from "@/lib/notes/document";
@@ -98,7 +99,10 @@ export function OfflineApp() {
     <div className="offline-page">
       <SyncStarter />
       <header className="offline-header">
-        <p className="brand">BijbelKompas</p>
+        <p className="brand">
+          <BrandMark />
+          BijbelKompas
+        </p>
         <SyncIndicator href="/sync" />
       </header>
       <main id="inhoud" className="main" tabIndex={-1}>

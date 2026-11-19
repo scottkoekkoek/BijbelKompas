@@ -57,7 +57,7 @@ export function SyncOverview() {
 
   return (
     <>
-      <section aria-labelledby="sync-status">
+      <section className="settings-section" aria-labelledby="sync-status">
         <h2 id="sync-status">Status</h2>
         <p>
           <strong>{syncLabel(state).text}</strong>. Laatst gesynchroniseerd: {when(state.lastSyncAt)}.
@@ -67,7 +67,7 @@ export function SyncOverview() {
         </button>
       </section>
 
-      <section aria-labelledby="sync-waiting">
+      <section className="settings-section" aria-labelledby="sync-waiting">
         <h2 id="sync-waiting">Nog niet verstuurd</h2>
         {waiting.length === 0 ? (
           <p>Alles is verstuurd.</p>
@@ -83,7 +83,7 @@ export function SyncOverview() {
         )}
       </section>
 
-      <section aria-labelledby="sync-conflicts">
+      <section className="settings-section" aria-labelledby="sync-conflicts">
         <h2 id="sync-conflicts">Conflictkopieën</h2>
         <p className="page-intro">
           Als een notitie op twee plaatsen tegelijk is gewijzigd, bewaren we jouw tekst als aparte kopie. Er wordt nooit iets
@@ -112,7 +112,7 @@ export function SyncOverview() {
       </section>
 
       {rejected.length > 0 && (
-        <section aria-labelledby="sync-rejected">
+        <section className="settings-section" aria-labelledby="sync-rejected">
           <h2 id="sync-rejected">Geweigerd</h2>
           <p className="page-intro">De server nam deze wijzigingen niet aan. De tekst staat nog op dit apparaat.</p>
           <ul>
@@ -125,7 +125,7 @@ export function SyncOverview() {
         </section>
       )}
 
-      <section aria-labelledby="sync-storage">
+      <section className="settings-section" aria-labelledby="sync-storage">
         <h2 id="sync-storage">Op dit apparaat</h2>
         <p>
           {data.stored} {data.stored === 1 ? "notitie" : "notities"} offline beschikbaar, waarvan {data.pinned} vastgezet.
