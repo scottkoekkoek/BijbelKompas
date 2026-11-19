@@ -1,6 +1,8 @@
 // GET /api/v1/notes/{id} and PUT /api/v1/notes/{id} (save with version check: BK-018, BK-021, BK-022)
 import { SaveNoteInput } from "@bk/schemas";
+import { after } from "next/server";
 import { z } from "zod";
+import { autoAnalyseAfter } from "@/lib/ai/auto";
 import { authenticated, errorResponse, json, logError, newRequestId } from "@/lib/api";
 import { getNote, saveNote } from "@/lib/notes/data";
 
@@ -40,7 +42,10 @@ export async function PUT(request: Request, ctx: Ctx) {
 
   try {
     const result = await saveNote(auth.supabase, id.data, parsed.data);
-    if (result.ok) return json(result.note, requestId);
+    if (result.ok) {
+      if (parsed.data.reason === "afronden") after(() => autoAnalyseAfter(auth.supabase, id.data, requestId));
+      return json(result.note, requestId);
+    }
     if (result.kind === "conflict") {
       return errorResponse(
         "REVISION_CONFLICT",

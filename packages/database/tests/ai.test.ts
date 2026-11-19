@@ -1,4 +1,4 @@
-// Sprint 11: the AI foundation without a provider (BK-041, BK-044, BK-045; AT-10, AT-12, AT-17).
+// Sprint 11/12: the AI foundation without a provider (BK-041..BK-046; AT-10, AT-11, AT-12, AT-17).
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -125,6 +125,97 @@ describe("AI suggestions (BK-041, AT-10, AT-17)", () => {
       expect(await fails(q, "select public.ai_reserve('analyse', 'z', 0.1, 'fictief', 'test-1', $1, 1)", [bobsNote])).toBe("42501");
       const job = (await reserve(q, "z2", 0.1, mine)).rows[0];
       expect((await q.query("select public.ai_add_suggestions($1, $2) n", [job.id, JSON.stringify([{ type: "verband", targetNoteId: bobsNote, title: "t", rationale: "r" }])])).rows[0].n).toBe(0);
+    });
+  });
+});
+
+/** Saves new text for a note through save_note, as the app does. */
+async function setText(q: pg.Client, id: string, text: string) {
+  const n = (await q.query("select document_version from public.notes where id = $1", [id])).rows[0];
+  const blockId = randomUUID();
+  const d = { type: "doc", content: [{ type: "paragraph", attrs: { blockId }, content: [{ type: "text", text }] }] };
+  await q.query(
+    "select public.save_note($1, $2, 'Titel', 'vrij', null, $3, $4, $5, '[]'::jsonb, null, null, null)",
+    [id, n.document_version, JSON.stringify(d), `h-${text}`, JSON.stringify([{ block_id: blockId, block_type: "paragraph", plain_text: text, position: 0, content_hash: `b-${text}` }])],
+  );
+  return blockId;
+}
+
+describe("outdated suggestions (BK-046)", () => {
+  it("are flagged when a note changes, and a new analysis may propose the link again", async () => {
+    await as(db, { kind: "user", id: alice }, async (q) => {
+      await aiOn(q);
+      const source = await newNote(q, "Bron 46");
+      const target = await newNote(q, "Doel 46");
+      const job = (await reserve(q, "o1", 0.01, source)).rows[0];
+      await q.query("select public.ai_add_suggestions($1, $2)", [job.id, JSON.stringify([{ type: "verband", targetNoteId: target, title: "t", rationale: "r" }])]);
+      await q.query("select public.ai_finish($1, true, 0.001)", [job.id]);
+      const stale = async () => (await q.query("select status, stale from public.ai_note_suggestions($1)", [source])).rows;
+      expect(await stale()).toEqual([{ status: "voorgesteld", stale: false }]);
+
+      await setText(q, target, "Nieuwe tekst in het doel");
+      expect(await stale()).toEqual([{ status: "voorgesteld", stale: true }]);
+
+      // a new analysis marks the old one as outdated and may propose the same link again
+      const again = (await reserve(q, "o2", 0.01, source)).rows[0];
+      expect((await q.query("select public.ai_add_suggestions($1, $2) n", [again.id, JSON.stringify([{ type: "verband", targetNoteId: target, title: "t", rationale: "r" }])])).rows[0].n).toBe(1);
+      expect((await q.query("select status, stale from public.ai_note_suggestions($1) order by created_at", [source])).rows.map((r) => r.status).sort()).toEqual(["verouderd", "voorgesteld"]);
+
+      // an accepted link is never re-proposed or marked outdated by the system
+      const fresh = (await q.query("select id from public.ai_suggestions where status = 'voorgesteld' and source_note_id = $1", [source])).rows[0].id;
+      await q.query("select public.ai_decide($1, 'geaccepteerd')", [fresh]);
+      await q.query("select public.ai_finish($1, true, 0.001)", [again.id]);
+      await setText(q, source, "Weer anders");
+      const third = (await reserve(q, "o3", 0.01, source)).rows[0];
+      expect((await q.query("select public.ai_add_suggestions($1, $2) n", [third.id, JSON.stringify([{ type: "verband", targetNoteId: target, title: "t", rationale: "r" }])])).rows[0].n).toBe(0);
+      expect((await q.query("select status from public.ai_suggestions where id = $1", [fresh])).rows[0].status).toBe("geaccepteerd");
+      expect(await fails(q, "select public.ai_decide($1, 'verouderd')", [fresh])).toBe("22023");
+    });
+  });
+});
+
+describe("questions to your notes (BK-042, BK-043, AT-11)", () => {
+  it("only finds the owner's own blocks, and only keeps sources that literally quote them", async () => {
+    await as(db, { kind: "user", id: bob }, async (q) => {
+      const bobsNote = await newNote(q, "Van Bob");
+      const bobsBlock = await setText(q, bobsNote, "Zondvloed bij Bob. Geheim.");
+      await q.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: alice, role: "authenticated" })]);
+      await aiOn(q);
+      const mine = await newNote(q, "Over de zondvloed");
+      const block = await setText(q, mine, "De zondvloed laat Gods geduld zien. Noach bouwde de ark.");
+      const found = (await q.query("select note_id, block_id from public.ai_fragments('zondvloed')")).rows;
+      expect(found).toEqual([{ note_id: mine, block_id: block }]);
+
+      const job = (await q.query("select * from public.ai_reserve('vraag', 'v1', 0.01, 'fictief', 'test-1')")).rows[0];
+      const a = (await q.query("select * from public.ai_add_answer($1, 'Wat over de zondvloed?', 'Antwoord', false, $2)", [job.id, JSON.stringify([
+        { noteId: mine, blockId: block, quote: "De zondvloed laat Gods geduld zien." },
+        { noteId: mine, blockId: block, quote: "De zondvloed laat Gods geduld zien." }, // twice
+        { noteId: mine, blockId: block, quote: "Een citaat dat er niet staat." },
+        { noteId: mine, blockId: randomUUID(), quote: "Noach" }, // block does not exist
+        { noteId: bobsNote, blockId: bobsBlock, quote: "Zondvloed bij Bob." }, // another account
+      ])])).rows[0];
+      expect(a.uncertain).toBe(false);
+      expect(a.sources).toEqual([{ noteId: mine, blockId: block, revision: expect.any(Number), blockHash: expect.any(String), quote: "De zondvloed laat Gods geduld zien." }]);
+      // the job is no longer open for a second answer, once finished
+      await q.query("select public.ai_finish($1, true, 0.001)", [job.id]);
+      expect(await fails(q, "select public.ai_add_answer($1, 'v', 'a', false, '[]')", [job.id])).toBe("42501");
+    });
+  });
+
+  it("without a checked source the answer is uncertain and the provider's text is not kept (AT-11)", async () => {
+    await as(db, { kind: "user", id: alice }, async (q) => {
+      await aiOn(q);
+      const job = (await q.query("select * from public.ai_reserve('vraag', 'v2', 0.01, 'fictief', 'test-1')")).rows[0];
+      const a = (await q.query("select * from public.ai_add_answer($1, 'Wat zei Paulus over X?', 'Paulus zei Y (bron: Preek 3).', false, $2)", [job.id, JSON.stringify([{ noteId: randomUUID(), blockId: randomUUID(), quote: "Paulus zei Y" }])])).rows[0];
+      expect(a).toMatchObject({ uncertain: true, sources: [] });
+      expect(a.answer).not.toContain("Paulus zei Y");
+      // the table itself cannot be written, and an analysis job cannot hold an answer
+      expect(await fails(q, "insert into public.ai_answers (owner_id, job_id, question, answer, uncertain, model_version) values (auth.uid(), $1, 'v', 'a', true, 'm')", [job.id])).toBe("42501");
+      const analyse = (await reserve(q, "v3", 0.01)).rows[0];
+      expect(await fails(q, "select public.ai_add_answer($1, 'vraag', 'a', false, '[]')", [analyse.id])).toBe("42501");
+    });
+    await as(db, { kind: "user", id: bob }, async (q) => {
+      expect((await q.query("select * from public.ai_answers")).rows).toEqual([]);
     });
   });
 });
