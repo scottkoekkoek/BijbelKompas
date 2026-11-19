@@ -491,3 +491,12 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .suggestion-list p { margin: 0 0 6px; }
 .suggestion-list .button-row { margin: 6px 0 0; }
 .ai-suggestions .hint { color: var(--muted); font-size: 0.9rem; }
+
+/* Sprint 12: questions to your notes (BK-042, BK-043) */
+.ask-notes { margin: 16px 0 24px; }
+.ask-notes .hint { color: var(--muted); font-size: 0.9rem; margin: 6px 0 0; }
+.ai-answer { margin-top: 8px; }
+.ai-answer h3 { font-size: 1rem; margin: 14px 0 6px; }
+.ai-sources { padding-left: 1.4em; }
+.ai-sources li { margin-bottom: 10px; overflow-wrap: anywhere; }
+.ai-sources blockquote { margin: 4px 0 0; padding-left: 10px; border-left: 3px solid var(--border); color: var(--text); font-style: italic; }

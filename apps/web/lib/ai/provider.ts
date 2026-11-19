@@ -18,6 +18,17 @@ export type ProposedSuggestion = {
 };
 export type AnalysisOutput = { suggestions: ProposedSuggestion[]; costEur: number };
 
+/** A block of one of the owner's notes that a question may be answered from (BK-042). */
+export type Fragment = { noteId: string; blockId: string; title: string; text: string };
+export type AskInput = { question: string; fragments: Fragment[] };
+/** Each source must point at a given fragment and quote it literally; the server checks this (BK-043). */
+export type AskOutput = {
+  text: string;
+  uncertain: boolean;
+  sources: { noteId: string; blockId: string; quote: string }[];
+  costEur: number;
+};
+
 export interface AiProvider {
   /** short name, stored with every job and suggestion */
   readonly name: string;
@@ -26,6 +37,15 @@ export interface AiProvider {
   readonly external: boolean;
   estimateEur(input: AnalysisInput): number;
   analyse(input: AnalysisInput): Promise<AnalysisOutput>;
+  estimateAskEur(input: AskInput): number;
+  ask(input: AskInput): Promise<AskOutput>;
+}
+
+/** The first sentence of a text (at most 200 characters), taken literally so it can be checked. */
+export function firstSentence(text: string): string {
+  const t = text.trim();
+  const end = t.search(/[.!?](\s|$)/);
+  return (end >= 0 ? t.slice(0, end + 1) : t).slice(0, 200).trim();
 }
 
 /** Local stand-in: proposes links between notes about the same verses. Reads no instructions from the text (AT-17). */
@@ -44,6 +64,19 @@ const fictief: AiProvider = {
         rationale: `Beide notities gaan over ${c.reference}.`,
         evidence: [{ noteId: c.noteId, reference: c.reference }],
       })),
+    };
+  },
+  estimateAskEur: () => 0.01,
+  /** Does not answer anything itself: it only points at the fragments that contain the words. */
+  async ask(input) {
+    const used = input.fragments.filter((f) => f.text.trim()).slice(0, 3);
+    if (used.length === 0) return { costEur: 0.001, uncertain: true, sources: [], text: "Hierover staat niets in je notities." };
+    const titles = [...new Set(used.map((f) => `“${f.title || "Naamloze notitie"}”`))].join(", ");
+    return {
+      costEur: 0.001,
+      uncertain: false,
+      text: `Testantwoord: je schreef hierover in ${titles}. Lees de bronnen hieronder.`,
+      sources: used.map((f) => ({ noteId: f.noteId, blockId: f.blockId, quote: firstSentence(f.text) })),
     };
   },
 };

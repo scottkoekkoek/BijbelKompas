@@ -2,13 +2,15 @@
 /**
  * BK-039..BK-041: AI suggestions for a note. Nothing happens by itself: the owner asks for an
  * analysis after finishing, and accepts, postpones or rejects every suggestion. A note is never changed.
+ * BK-046: a suggestion made before one of the two notes changed is marked as outdated.
  */
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Suggestion = {
   id: string;
-  status: "voorgesteld" | "geaccepteerd" | "uitgesteld" | "afgewezen";
+  status: "voorgesteld" | "geaccepteerd" | "uitgesteld" | "afgewezen" | "verouderd";
+  stale: boolean;
   rationale: string;
   model: string;
   otherNoteId: string | null;
@@ -21,6 +23,7 @@ const STATUS_LABEL: Record<Suggestion["status"], string> = {
   geaccepteerd: "Geaccepteerd",
   uitgesteld: "Later bekijken",
   afgewezen: "Afgewezen",
+  verouderd: "Verouderd",
 };
 
 export function NoteSuggestions({ noteId, aiEnabled, provider }: Props) {
@@ -61,7 +64,7 @@ export function NoteSuggestions({ noteId, aiEnabled, provider }: Props) {
     }
   }
 
-  async function decide(id: string, next: Suggestion["status"]) {
+  async function decide(id: string, next: Exclude<Suggestion["status"], "verouderd">) {
     setItems((list) => list?.map((s) => (s.id === id ? { ...s, status: next } : s)) ?? null);
     const res = await fetch(`/api/v1/ai/suggestions/${id}`, {
       method: "POST",
@@ -113,7 +116,11 @@ export function NoteSuggestions({ noteId, aiEnabled, provider }: Props) {
                 <p>
                   <strong>{s.otherTitle || "Naamloze notitie"}</strong>
                   {s.status === "uitgesteld" && <span className="muted"> · later bekijken</span>}
+                  {s.stale && <> <span className="badge">Verouderd</span></>}
                 </p>
+                {s.stale && (
+                  <p className="muted">Een van beide notities is gewijzigd sinds dit voorstel. Laat opnieuw zoeken voor een actueel voorstel, of beslis zelf.</p>
+                )}
                 <p>{s.rationale}</p>
                 <p className="muted">Voorgesteld door {s.model}</p>
                 <div className="button-row">

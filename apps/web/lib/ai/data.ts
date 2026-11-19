@@ -1,6 +1,8 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
-import type { AiProvider } from "./provider";
+import { createHash } from "node:crypto";
+import type { AiProvider, Fragment } from "./provider";
+import { checkedSources } from "./sources";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -8,7 +10,9 @@ export type AiBudget = { month: string; limitEur: number; stopAtEur: number; use
 export type AiSuggestion = {
   id: string;
   type: "verband" | "onderwerp" | "vraag";
-  status: "voorgesteld" | "geaccepteerd" | "uitgesteld" | "afgewezen";
+  status: "voorgesteld" | "geaccepteerd" | "uitgesteld" | "afgewezen" | "verouderd";
+  /** one of the two notes has changed since the suggestion was made (BK-046) */
+  stale: boolean;
   title: string;
   rationale: string;
   targetNoteId: string | null;
@@ -27,41 +31,49 @@ export async function getBudget(db: Db): Promise<AiBudget> {
   return { month: b.month, limitEur: Number(b.limit_eur), stopAtEur: Number(b.stop_at_eur), usedEur: Number(b.used_eur), enabled: b.enabled };
 }
 
-/** Suggestions that involve a note (as source or as target), newest first. */
+/** Suggestions that involve a note (as source or as target), newest first, with whether they are outdated. */
 export async function suggestionsForNote(db: Db, noteId: string): Promise<AiSuggestion[]> {
-  const { data, error } = await db
-    .from("ai_suggestions")
-    .select("id, suggestion_type, status, title, rationale, target_note_id, source_note_id, model_version, created_at")
-    .or(`source_note_id.eq.${noteId},target_note_id.eq.${noteId}`)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const { data, error } = await db.rpc("ai_note_suggestions", { p_note_id: noteId });
   if (error) throw error;
-  const others = [...new Set((data ?? []).map((s) => (s.source_note_id === noteId ? s.target_note_id : s.source_note_id)).filter((x): x is string => !!x))];
+  const rows = (data ?? []) as {
+    id: string;
+    suggestion_type: AiSuggestion["type"];
+    status: AiSuggestion["status"];
+    title: string;
+    rationale: string;
+    source_note_id: string;
+    target_note_id: string | null;
+    model_version: string;
+    created_at: string;
+    stale: boolean;
+  }[];
+  const others = [...new Set(rows.map((s) => (s.source_note_id === noteId ? s.target_note_id : s.source_note_id)).filter((x): x is string => !!x))];
   const titles = new Map<string, string>();
   if (others.length > 0) {
     const t = await db.from("notes").select("id, title").in("id", others);
     if (t.error) throw t.error;
     for (const n of t.data ?? []) titles.set(n.id, n.title);
   }
-  return (data ?? []).map((s) => {
+  return rows.map((s) => {
     const other = s.source_note_id === noteId ? s.target_note_id : s.source_note_id;
     return {
-    id: s.id,
-    type: s.suggestion_type,
-    status: s.status,
-    title: s.title,
-    rationale: s.rationale,
-    targetNoteId: s.target_note_id,
-    sourceNoteId: s.source_note_id,
-    model: s.model_version,
-    createdAt: s.created_at,
-    otherNoteId: other,
-    otherTitle: other ? (titles.get(other) ?? null) : null,
+      id: s.id,
+      type: s.suggestion_type,
+      status: s.status,
+      stale: s.stale === true,
+      title: s.title,
+      rationale: s.rationale,
+      targetNoteId: s.target_note_id,
+      sourceNoteId: s.source_note_id,
+      model: s.model_version,
+      createdAt: s.created_at,
+      otherNoteId: other,
+      otherTitle: other ? (titles.get(other) ?? null) : null,
     };
   });
 }
 
-export async function decide(db: Db, id: string, status: AiSuggestion["status"]): Promise<boolean> {
+export async function decide(db: Db, id: string, status: Exclude<AiSuggestion["status"], "verouderd">): Promise<boolean> {
   const { error } = await db.rpc("ai_decide", { p_id: id, p_status: status });
   if (error) {
     if (error.code === "42501") return false;
@@ -70,13 +82,48 @@ export async function decide(db: Db, id: string, status: AiSuggestion["status"])
   return true;
 }
 
-export type AnalyseResult =
-  | { ok: true; jobId: string; added: number; reused: boolean }
-  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" };
+type Reservation = { ok: true; job: { id: string; status: "gereserveerd" | "klaar" } } | { ok: false; kind: "ai_off" | "budget" | "failed" };
 
 /**
- * BK-039 / spec §13.3: an analysis of a finished note. Checks AI on/off, the note, the budget
- * (reserved BEFORE the provider is called) and idempotency (same note revision = same job).
+ * Reserves the estimated cost under an idempotency key. A finished job with the same key is given
+ * back (nothing is paid again). After a failed attempt a new one is allowed, at most three in all,
+ * so one network error does not block a question for good, and a broken provider cannot drain the budget.
+ */
+async function reserve(
+  db: Db,
+  a: { jobType: "analyse" | "vraag"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
+): Promise<Reservation> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { data, error } = await db
+      .rpc("ai_reserve", {
+        p_job_type: a.jobType,
+        p_key: attempt === 1 ? a.key : `${a.key}#${attempt}`,
+        p_estimate: a.estimate,
+        p_provider: a.provider.name,
+        p_model: a.provider.model,
+        p_note_id: a.noteId ?? null,
+        p_revision: a.revision ?? null,
+      })
+      .single();
+    if (error) {
+      if (error.code === "42501") return { ok: false, kind: "ai_off" };
+      if (error.code === "53400") return { ok: false, kind: "budget" };
+      throw error;
+    }
+    const job = data as { id: string; status: "gereserveerd" | "klaar" | "mislukt" };
+    if (job.status !== "mislukt") return { ok: true, job: { id: job.id, status: job.status } };
+  }
+  return { ok: false, kind: "failed" };
+}
+
+export type AnalyseResult =
+  | { ok: true; jobId: string; added: number; reused: boolean }
+  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "failed" };
+
+/**
+ * BK-039 / spec §13.3, §8: an analysis of a finished note. Checks AI on/off, the note, the budget
+ * (reserved BEFORE the provider is called) and idempotency: the same text (content hash) is never
+ * analysed twice, even after finishing it again.
  * The result can only become suggestions; the note itself is never changed.
  */
 export async function analyseNote(db: Db, provider: AiProvider, noteId: string): Promise<AnalyseResult> {
@@ -89,10 +136,12 @@ export async function analyseNote(db: Db, provider: AiProvider, noteId: string):
   if (!note) return { ok: false, kind: "not_found" };
   if (note.status !== "afgerond") return { ok: false, kind: "not_finished" };
 
-  const [{ data: blocks, error: e1 }, { data: cands, error: e2 }] = await Promise.all([
+  const [{ data: doc, error: e0 }, { data: blocks, error: e1 }, { data: cands, error: e2 }] = await Promise.all([
+    db.from("note_documents").select("content_hash").eq("note_id", noteId).maybeSingle(),
     db.from("note_blocks").select("plain_text").eq("note_id", noteId).order("position").limit(2000),
     db.rpc("ai_candidates", { p_note_id: noteId }),
   ]);
+  if (e0) throw e0;
   if (e1) throw e1;
   if (e2) throw e2;
   const input = {
@@ -102,23 +151,16 @@ export async function analyseNote(db: Db, provider: AiProvider, noteId: string):
     candidates: ((cands ?? []) as { note_id: string; title: string; reference: string }[]).map((c) => ({ noteId: c.note_id, title: c.title, reference: c.reference })),
   };
 
-  const reserved = await db
-    .rpc("ai_reserve", {
-      p_job_type: "analyse",
-      p_key: `analyse:${noteId}:r${note.current_revision}:${provider.name}/${provider.model}`,
-      p_estimate: provider.estimateEur(input),
-      p_provider: provider.name,
-      p_model: provider.model,
-      p_note_id: noteId,
-      p_revision: note.current_revision,
-    })
-    .single();
-  if (reserved.error) {
-    if (reserved.error.code === "42501") return { ok: false, kind: "ai_off" };
-    if (reserved.error.code === "53400") return { ok: false, kind: "budget" };
-    throw reserved.error;
-  }
-  const job = reserved.data as { id: string; status: string };
+  const r = await reserve(db, {
+    jobType: "analyse",
+    key: `analyse:${noteId}:${doc?.content_hash ?? `r${note.current_revision}`}:${provider.name}/${provider.model}`,
+    estimate: provider.estimateEur(input),
+    provider,
+    noteId,
+    revision: note.current_revision,
+  });
+  if (!r.ok) return r;
+  const job = r.job;
   if (job.status !== "gereserveerd") return { ok: true, jobId: job.id, added: 0, reused: true };
 
   try {
@@ -133,4 +175,120 @@ export async function analyseNote(db: Db, provider: AiProvider, noteId: string):
     await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateEur(input) });
     throw err;
   }
+}
+
+/**
+ * Automatic analysis right after finishing, only when the owner switched it on (spec §8, §17).
+ * Runs after the save has been answered; a failure never touches the note and is only logged.
+ */
+export async function autoAnalyse(db: Db, provider: AiProvider | null, noteId: string): Promise<AnalyseResult | null> {
+  if (!provider) return null;
+  const prefs = await db.from("user_preferences").select("ai_enabled, auto_analysis").maybeSingle();
+  if (prefs.error) throw prefs.error;
+  if (prefs.data?.ai_enabled !== true || prefs.data?.auto_analysis !== true) return null;
+  return analyseNote(db, provider, noteId);
+}
+
+export type AiAnswer = {
+  id: string;
+  question: string;
+  text: string;
+  uncertain: boolean;
+  model: string;
+  createdAt: string;
+  sources: { noteId: string; blockId: string; title: string; quote: string; revision: number; changed: boolean }[];
+};
+
+export type AskResult =
+  | { ok: true; answer: AiAnswer; reused: boolean }
+  | { ok: false; kind: "ai_off" | "budget" | "failed" };
+
+type AnswerRow = { id: string; question: string; answer: string; uncertain: boolean; model_version: string; created_at: string; sources: { noteId: string; blockId: string; revision: number; blockHash: string; quote: string }[] };
+
+/** Adds note titles to the stored sources, and whether a block has changed since the answer. */
+async function toAnswer(db: Db, a: AnswerRow): Promise<AiAnswer> {
+  const ids = [...new Set(a.sources.map((s) => s.noteId))];
+  const [notes, blocks] = ids.length
+    ? await Promise.all([
+        db.from("notes").select("id, title").in("id", ids),
+        db.from("note_blocks").select("note_id, block_id, content_hash").in("note_id", ids),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (notes.error) throw notes.error;
+  if (blocks.error) throw blocks.error;
+  const title = new Map((notes.data ?? []).map((n) => [n.id, n.title as string]));
+  const hash = new Map((blocks.data ?? []).map((b) => [`${b.note_id}/${b.block_id}`, b.content_hash as string]));
+  return {
+    id: a.id,
+    question: a.question,
+    text: a.answer,
+    uncertain: a.uncertain,
+    model: a.model_version,
+    createdAt: a.created_at,
+    // a source whose note is gone (or no longer visible) is not shown at all
+    sources: a.sources
+      .filter((s) => title.has(s.noteId))
+      .map((s) => ({
+        noteId: s.noteId,
+        blockId: s.blockId,
+        title: title.get(s.noteId) || "Naamloze notitie",
+        quote: s.quote,
+        revision: s.revision,
+        changed: hash.get(`${s.noteId}/${s.blockId}`) !== s.blockHash,
+      })),
+  };
+}
+
+/**
+ * BK-042 / BK-043: a question to the owner's own notes. Only fragments of the owner's notes that
+ * contain the words go to the provider, the cost is reserved first, and every source in the answer
+ * is checked (here and again in the database) before it is stored or shown. The same question about
+ * the same fragments gives the stored answer back without paying again.
+ */
+export async function askNotes(db: Db, provider: AiProvider, question: string): Promise<AskResult> {
+  const prefs = await db.from("user_preferences").select("ai_enabled").maybeSingle();
+  if (prefs.error) throw prefs.error;
+  if (prefs.data?.ai_enabled !== true) return { ok: false, kind: "ai_off" };
+
+  const { data, error } = await db.rpc("ai_fragments", { p_query: question, p_limit: 12 });
+  if (error) throw error;
+  const rows = (data ?? []) as { note_id: string; block_id: string; title: string; block_hash: string; plain_text: string }[];
+  const fragments: Fragment[] = rows.map((r) => ({ noteId: r.note_id, blockId: r.block_id, title: r.title, text: r.plain_text }));
+  const input = { question, fragments };
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify([question.toLowerCase().replace(/\s+/g, " "), rows.map((r) => `${r.block_id}:${r.block_hash}`)]))
+    .digest("hex")
+    .slice(0, 32);
+
+  const r = await reserve(db, { jobType: "vraag", key: `vraag:${fingerprint}:${provider.name}/${provider.model}`, estimate: provider.estimateAskEur(input), provider });
+  if (!r.ok) return r;
+  const job = r.job;
+  if (job.status === "klaar") {
+    const prev = await db.from("ai_answers").select("*").eq("job_id", job.id).maybeSingle();
+    if (prev.error) throw prev.error;
+    if (!prev.data) return { ok: false, kind: "failed" };
+    return { ok: true, answer: await toAnswer(db, prev.data as AnswerRow), reused: true };
+  }
+
+  try {
+    const out = await provider.ask(input);
+    const sources = checkedSources(fragments, out.sources);
+    const saved = await db
+      .rpc("ai_add_answer", { p_job_id: job.id, p_question: question, p_answer: out.text, p_uncertain: out.uncertain, p_sources: sources })
+      .single();
+    if (saved.error) throw saved.error;
+    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    if (fin.error) throw fin.error;
+    return { ok: true, answer: await toAnswer(db, saved.data as AnswerRow), reused: false };
+  } catch (err) {
+    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateAskEur(input) });
+    throw err;
+  }
+}
+
+/** The owner's latest answers, newest first. */
+export async function recentAnswers(db: Db, limit = 5): Promise<AiAnswer[]> {
+  const { data, error } = await db.from("ai_answers").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return Promise.all(((data ?? []) as AnswerRow[]).map((a) => toAnswer(db, a)));
 }

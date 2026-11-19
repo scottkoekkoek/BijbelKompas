@@ -1,7 +1,9 @@
 import { NOTE_TYPE_LABELS, NoteStatus, NoteType } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AskNotes } from "@/components/ai/AskNotes";
 import { Highlight } from "@/components/Highlight";
+import { configuredProvider } from "@/lib/ai/provider";
 import { readerPath } from "@/lib/bible";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { getSermonSuggestions, searchBible, searchNotes, type SearchFilters } from "@/lib/notes/data";
@@ -16,16 +18,20 @@ type Props = {
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 const isoDate = (s?: string) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) ? s : undefined);
 
-/** BK-034, BK-035, BK-038: keyword search in own notes (by block) and in the Bible text. No AI involved. */
+/** BK-034, BK-035, BK-038: keyword search in own notes (by block) and in the Bible text. No AI involved.
+ *  BK-042: with AI on, a question to your notes can be asked too (separately, never automatically). */
 export default async function SearchPage({ searchParams }: Props) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim().slice(0, 200);
   const supabase = await createClient();
-  const [books, translations, suggestions] = await Promise.all([
+  const [books, translations, suggestions, prefs] = await Promise.all([
     getBooks(supabase),
     getTranslations(supabase),
     getSermonSuggestions(supabase),
+    supabase.from("user_preferences").select("ai_enabled").maybeSingle(),
   ]);
+  // BK-042: asking questions only with AI on and a provider set; plain search never needs AI
+  const provider = prefs.data?.ai_enabled === true ? configuredProvider() : null;
   const filters: SearchFilters = {
     type: NoteType.safeParse(sp.type).data,
     status: NoteStatus.safeParse(sp.status).data,
@@ -114,6 +120,8 @@ export default async function SearchPage({ searchParams }: Props) {
           </div>
         </details>
       </form>
+
+      {provider && <AskNotes initialQuestion={q} provider={{ name: provider.name, external: provider.external }} />}
 
       {!searching ? (
         <p className="placeholder">Typ minstens twee letters. Je zoekt in titels en tekst van je notities en in de Bijbeltekst.</p>

@@ -61,6 +61,6 @@ blijft daarom nodig (spec §17).
   verwerkersovereenkomst afsluiten.
 - Een limiet bij de aanbieder zelf instellen.
 - Semantisch zoeken met embeddings (BK-036, BK-037).
-- Vragen stellen aan je notities, met controleerbare bronnen (BK-042, BK-043, AT-11).
-- Verouderde voorstellen herkennen (BK-046).
-- Automatisch analyseren na afronden.
+- Vragen stellen aan je notities: gebouwd in Sprint 12 met de testaanbieder (ADR-013).
+- Verouderde voorstellen herkennen: gebouwd in Sprint 12 (ADR-013).
+- Automatisch analyseren na afronden: gebouwd in Sprint 12 (ADR-013).
