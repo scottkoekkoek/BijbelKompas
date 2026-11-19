@@ -40,7 +40,7 @@ type RevisionRow = { note_id: string; revision_number: number; reason: string; c
 type SermonRow = { note_id: string; service_type: string | null; speaker: { name: string } | null; organization: { name: string } | null; series: { name: string } | null };
 
 export async function collectExport(db: Db, now = new Date()): Promise<ExportData> {
-  const [notes, docs, revisions, sermons, templates, prefs, position, collections, collectionItems, questions, questionNotes, questionPassages] = await Promise.all([
+  const [notes, docs, revisions, sermons, templates, prefs, position, collections, collectionItems, questions, questionNotes, questionPassages, highlights] = await Promise.all([
     all<NoteRow>((a, b) =>
       db.from("notes")
         .select("id, title, note_type, status, event_date, created_at, updated_at, completed_at, archived_at, document_version")
@@ -84,6 +84,11 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
       db.from("question_passages")
         .select("id, question_id, label, translation, book, start_chapter, start_verse, end_chapter, end_verse, created_at")
         .order("question_id").order("id").range(a, b),
+    ),
+    all<unknown>((a, b) =>
+      db.from("highlights")
+        .select("id, label, translation, book, start_chapter, start_verse, end_chapter, end_verse, color, annotation, created_at, updated_at")
+        .order("start_order").order("id").range(a, b),
     ),
   ]);
   if (prefs.error) throw prefs.error;
@@ -133,6 +138,7 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     questions,
     questionNotes,
     questionPassages,
+    highlights,
   };
 }
 

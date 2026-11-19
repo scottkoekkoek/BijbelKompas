@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CompareView } from "@/components/bible/CompareView";
+import { HighlightList } from "@/components/bible/HighlightList";
 import { VerseList } from "@/components/bible/VerseList";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
 import { neighbours, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
+import { chapterHighlights, compareChapter } from "@/lib/reader/data";
 import { createClient } from "@/lib/supabase/server";
 
-type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string }> };
+type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { book, chapter } = await params;
@@ -18,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ReaderPage({ params, searchParams }: Props) {
   const { book: rawBook, chapter: rawChapter } = await params;
-  const { v } = await searchParams;
+  const { v, naast } = await searchParams;
   const chapter = Number(rawChapter);
 
   const supabase = await createClient();
@@ -46,6 +49,12 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
   const references = translations.filter((t) => !t.hasText && t.externalUrl);
   const readable = translations.filter((t) => t.hasText);
+  // BK-011: a second translation side by side (only one whose text may be shown)
+  const other = translation && naast ? readable.find((t) => t.code === naast.toUpperCase() && t.code !== translation.code) : undefined;
+  const compared = data && other && data.verses.length > 0 ? await compareChapter(supabase, data.translation.code, other.code, book.code, chapter) : null;
+  // BK-013: the owner's highlights, in the numbering of this translation
+  const highlights = data ? await chapterHighlights(supabase, data.translation.code, book.code, chapter) : [];
+  const comparePath = (code: string) => `${readerPath(book.code, chapter, translation?.code)}&naast=${code}`;
 
   return (
     <article className="reader">
@@ -76,6 +85,19 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           ))}
         </nav>
       </header>
+      {translation && readable.length > 1 && (
+        <nav aria-label="Vergelijk met" className="translation-switch compare-switch">
+          <span className="muted">Vergelijk met:</span>
+          {readable
+            .filter((t) => t.code !== translation.code)
+            .map((t) => (
+              <Link key={t.code} href={comparePath(t.code)} aria-current={t.code === other?.code ? "true" : undefined} title={t.name}>
+                {t.code}
+              </Link>
+            ))}
+          {other && <Link href={readerPath(book.code, chapter, translation.code)}>Vergelijken sluiten</Link>}
+        </nav>
+      )}
 
       {!data ? (
         <p className="placeholder">Er is nog geen vertaling met tekst beschikbaar.</p>
@@ -83,6 +105,13 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         <p className="placeholder">
           Van {book.name} {chapter} is in de {data.translation.name} nog geen tekst ingeladen.
         </p>
+      ) : compared && other ? (
+        <CompareView
+          rows={compared}
+          caption={`${book.name} ${chapter} in ${data.translation.name} en ${other.name}`}
+          a={{ code: data.translation.code, name: data.translation.name }}
+          b={{ code: other.code, name: other.name }}
+        />
       ) : (
         <VerseList
           key={`${data.translation.code}-${book.code}-${chapter}`}
@@ -92,8 +121,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           chapter={chapter}
           translationCode={data.translation.code}
           noted={[...new Set(noteRows.map((r) => r.verse_number))]}
+          highlights={highlights}
         />
       )}
+
+      {!compared && <HighlightList highlights={highlights} />}
 
       {notesInChapter.length > 0 && (
         <section className="chapter-notes" aria-labelledby="chapter-notes-title">

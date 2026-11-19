@@ -17,6 +17,7 @@ import {
   setMeta,
   type Meta,
 } from "./db";
+import { pruneOfflineBible } from "./bible";
 import { applyResult, backoffMs, copyTitle, latestContent, nextOperation, queueChange } from "./outbox";
 import type { ConflictRecord, NoteEvent, OutboxEntry, StoredNote } from "./types";
 
@@ -348,6 +349,14 @@ class SyncEngine {
     }
     meta = await this.refreshPinnedCollections(meta);
     await this.refreshOfflineCopy(meta);
+    await this.checkOfflineBible(meta);
+  }
+
+  /** BK-014: Bible text whose rights no longer allow offline use is removed from this device. */
+  private async checkOfflineBible(meta: Meta) {
+    if (Object.keys(meta.offlineBible).length === 0) return;
+    const r = await this.request<{ translations: { code: string }[] }>("/api/v1/bible/offline");
+    await pruneOfflineBible(r.translations.map((t) => t.code));
   }
 
   /** Sprint 7: which notes are in the collections kept offline now (a deleted collection drops out). */

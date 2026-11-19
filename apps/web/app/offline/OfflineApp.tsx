@@ -8,13 +8,14 @@ import { useCallback, useEffect, useState } from "react";
 import { NoteEditor } from "@/components/notes/NoteEditor";
 import { SyncIndicator, SyncStarter } from "@/components/sync/SyncStatus";
 import { emptyDocument } from "@/lib/notes/document";
-import { getMeta, listOutbox, listStored, saveLocal, type BookInfo } from "@/lib/offline/db";
+import { getMeta, listOutbox, listStored, saveLocal, type BookInfo, type OfflineTranslation } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
 import type { OutboxEntry, StoredNote } from "@/lib/offline/types";
 import { noteFromStored } from "@/lib/offline/view";
+import { OfflineBibleReader } from "./OfflineBibleReader";
 
 type Item = { note: Note; unsynced: boolean; stamp: number | null };
-type State = { items: Item[]; books: BookInfo[]; translation: string };
+type State = { items: Item[]; books: BookInfo[]; translation: string; bible: Record<string, OfflineTranslation> };
 
 const NO_SUGGESTIONS = { speakers: [], organizations: [], series: [] };
 
@@ -27,6 +28,7 @@ export function OfflineApp() {
   const [state, setState] = useState<State | null>(null);
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [biblePath, setBiblePath] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
 
   const load = useCallback(async () => {
@@ -37,20 +39,23 @@ export function OfflineApp() {
         .map((s) => toItem(s, byId.get(s.id)))
         .filter((i): i is Item => i !== null && !i.note.archived)
         .sort((a, b) => b.note.updatedAt.localeCompare(a.note.updatedAt));
-      setState({ items, books: meta.books, translation: meta.defaultTranslation });
+      setState({ items, books: meta.books, translation: meta.defaultTranslation, bible: meta.offlineBible });
     } catch {
       setFailed(true);
     }
   }, []);
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("notitie");
+    const search = new URLSearchParams(window.location.search);
+    const id = search.get("notitie");
+    const bijbel = search.get("bijbel");
     const update = () => setOnline(navigator.onLine);
     update();
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the address once on mount
     if (id && /^[0-9a-f-]{36}$/.test(id)) setOpenId(id);
+    else if (bijbel && /^[A-Za-z0-9_/]{1,40}$/.test(bijbel)) setBiblePath(bijbel);
     void load();
     return () => {
       window.removeEventListener("online", update);
@@ -58,8 +63,17 @@ export function OfflineApp() {
     };
   }, [load]);
 
+  function read(path: string | null) {
+    setOpenId(null);
+    setBiblePath(path);
+    window.history.replaceState(null, "", path ? `/offline?bijbel=${path}` : "/offline");
+    void load();
+    window.scrollTo(0, 0);
+  }
+
   function open(id: string | null) {
     setOpenId(id);
+    setBiblePath(null);
     const url = id ? `/offline?notitie=${id}` : "/offline";
     window.history.replaceState(null, "", url);
     void load();
@@ -129,7 +143,9 @@ export function OfflineApp() {
           </article>
         )}
 
-        {state && !openId && (
+        {state && !openId && biblePath && <OfflineBibleReader key={biblePath} path={biblePath} onNavigate={read} />}
+
+        {state && !openId && !biblePath && (
           <>
             <h1>Offline notities</h1>
             <p className="page-intro">
@@ -153,6 +169,21 @@ export function OfflineApp() {
                   </li>
                 ))}
               </ul>
+            )}
+            {Object.keys(state.bible).length > 0 && (
+              <section aria-labelledby="offline-bible">
+                <h2 id="offline-bible">Bijbel op dit apparaat</h2>
+                <ul className="offline-list">
+                  {Object.entries(state.bible).map(([code, t]) => (
+                    <li key={code}>
+                      <button type="button" onClick={() => read(code)}>
+                        <span className="title">{t.name}</span>
+                        <span className="note-list-meta"> · {t.chapters} hoofdstukken</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </>
         )}

@@ -1,8 +1,10 @@
 "use client";
-import type { ChapterVerse } from "@bk/schemas";
+import type { ChapterHighlight, ChapterVerse, HighlightColor } from "@bk/schemas";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
+import { HighlightEditor } from "./HighlightEditor";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
 
 type LinkedNote = { noteId: string; title: string; blockId: string; reference: string; snippet: string };
@@ -15,11 +17,16 @@ type Props = {
   translationCode: string;
   /** verse numbers that have at least one note */
   noted?: number[];
+  /** BK-013: the owner's highlights, in this translation's verse numbers */
+  highlights?: ChapterHighlight[];
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [] }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [] }: Props) {
+  const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
+  const [marking, setMarking] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [linked, setLinked] = useState<LinkedNote[] | null>(null);
 
@@ -54,6 +61,36 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
   function toggle(n: number) {
     setSelection((s) => nextSelection(s, n));
     setStatus("");
+    setMarking(false);
+  }
+
+  // the last highlight covering a verse decides its color
+  const highlightOf = (n: number) => highlights.filter((h) => h.verses.includes(n)).at(-1);
+
+  async function mark(color: HighlightColor, annotation: string) {
+    if (!selection) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/v1/highlights", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          passage: { translation: translationCode, book: bookCode, startChapter: chapter, startVerse: selection.from, endChapter: chapter, endVerse: selection.to },
+          label: formatReference(bookName, chapter, selection),
+          color,
+          annotation,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setStatus("Gemarkeerd.");
+      setMarking(false);
+      setSelection(null);
+      router.refresh();
+    } catch {
+      setStatus("Markeren is niet gelukt. Probeer het opnieuw.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function copy(kind: "reference" | "text") {
@@ -75,8 +112,16 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
   return (
     <>
       <div className="bible-text">
-        {verses.map((v) => (
-          <span key={v.verse} id={`v${v.verse}`} className={isSelected(v.verse) ? "verse selected" : "verse"} data-verse={v.verse}>
+        {verses.map((v) => {
+          const h = highlightOf(v.verse);
+          return (
+          <span
+            key={v.verse}
+            id={`v${v.verse}`}
+            className={["verse", isSelected(v.verse) && "selected", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
+            data-verse={v.verse}
+            title={h?.annotation || undefined}
+          >
             <button
               type="button"
               className="verse-num"
@@ -93,9 +138,11 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             )}{" "}
             <span className="verse-text" onClick={() => toggle(v.verse)}>
               {v.text}
-            </span>{" "}
+            </span>
+            {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}{" "}
           </span>
-        ))}
+          );
+        })}
       </div>
 
       {selection && (
@@ -122,10 +169,14 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
                 },
               }}
             />
+            <button type="button" className="button secondary" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
+              Markeren
+            </button>
             <button type="button" className="button secondary" onClick={() => setSelection(null)}>
               Wissen
             </button>
           </div>
+          {marking && <HighlightEditor saveLabel="Markering opslaan" busy={busy} onSave={(c, a) => void mark(c, a)} onCancel={() => setMarking(false)} />}
           {hasNoted && linked && linked.length > 0 && (
             <section className="verse-notes" aria-label="Notities bij deze verzen">
               <h2>Notities bij deze verzen</h2>

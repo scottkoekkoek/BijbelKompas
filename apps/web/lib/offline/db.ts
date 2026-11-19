@@ -20,18 +20,25 @@ export type Meta = {
   index: Record<string, { updatedAt: string; version: number; archived: boolean; title: string }>;
   /** Sprint 7: collections kept offline, with the notes in them (and in their subcollections) */
   pinnedCollections: Record<string, { name: string; noteIds: string[] }>;
+  /** Sprint 9 (BK-014): Bible translations kept on this device, with the books that have text */
+  offlineBible: Record<string, OfflineTranslation>;
 };
+
+export type OfflineTranslation = { name: string; attribution: string | null; books: string[]; chapters: number; savedAt: number };
+export type StoredChapter = { key: string; translation: string; book: string; chapter: number; verses: { verse: number; text: string }[] };
+export const chapterKey = (translation: string, book: string, chapter: number) => `${translation}/${book}/${chapter}`;
 
 interface Schema extends DBSchema {
   notes: { key: string; value: StoredNote };
   outbox: { key: string; value: OutboxEntry };
   conflicts: { key: string; value: ConflictRecord };
   meta: { key: string; value: unknown };
+  bible: { key: string; value: StoredChapter; indexes: { translation: string } };
 }
 
 const DB_NAME = "bijbelkompas";
-/** Version 1. A schema change needs a new version with an upgrade step (and a test). */
-const DB_VERSION = 1;
+/** Version 2 (Sprint 9) adds the Bible store. A schema change needs a new version with an upgrade step (and a test). */
+export const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
 
@@ -45,6 +52,14 @@ export function db(): Promise<IDBPDatabase<Schema>> {
           d.createObjectStore("conflicts", { keyPath: "id" });
           d.createObjectStore("meta");
         }
+        if (oldVersion < 2) {
+          d.createObjectStore("bible", { keyPath: "key" }).createIndex("translation", "translation");
+        }
+      },
+      // a newer version of the app (another tab) wants to upgrade: step aside, the next call reopens
+      blocking() {
+        void dbPromise?.then((d) => d.close());
+        dbPromise = null;
       },
     });
   }
@@ -53,6 +68,7 @@ export function db(): Promise<IDBPDatabase<Schema>> {
 
 /** For tests: forget the open connection. */
 export function resetDbForTests() {
+  void dbPromise?.then((d) => d.close());
   dbPromise = null;
 }
 
@@ -66,6 +82,7 @@ const DEFAULT_META: Meta = {
   defaultTranslation: "SV",
   index: {},
   pinnedCollections: {},
+  offlineBible: {},
 };
 
 export async function getMeta(): Promise<Meta> {
@@ -180,6 +197,62 @@ export async function setCollectionPinned(id: string, pin: { name: string; noteI
   await tx.done;
 }
 
+/** BK-014: stores the chapters of one book and records it under the translation, in one step. */
+export async function saveBibleBook(
+  translation: { code: string; name: string; attribution: string | null },
+  book: string,
+  chapters: { chapter: number; verses: { verse: number; text: string }[] }[],
+): Promise<void> {
+  const d = await db();
+  const tx = d.transaction(["bible", "meta"], "readwrite");
+  const store = tx.objectStore("bible");
+  for (const c of chapters) {
+    await store.put({ key: chapterKey(translation.code, book, c.chapter), translation: translation.code, book, chapter: c.chapter, verses: c.verses });
+  }
+  const meta = tx.objectStore("meta");
+  const current = { ...DEFAULT_META, ...((await meta.get("meta")) as Partial<Meta> | undefined) };
+  const prev = current.offlineBible[translation.code];
+  const books = chapters.length > 0 ? [...new Set([...(prev?.books ?? []), book])] : (prev?.books ?? []);
+  const entry: OfflineTranslation = {
+    name: translation.name,
+    attribution: translation.attribution,
+    books,
+    chapters: (prev?.chapters ?? 0) + chapters.length,
+    savedAt: Date.now(),
+  };
+  await meta.put({ ...current, offlineBible: { ...current.offlineBible, [translation.code]: entry } }, "meta");
+  await tx.done;
+}
+
+export async function getBibleChapter(translation: string, book: string, chapter: number): Promise<StoredChapter | undefined> {
+  return (await db()).get("bible", chapterKey(translation, book, chapter));
+}
+
+/** The chapter numbers of a book that are on this device. */
+export async function storedChapters(translation: string, book: string): Promise<number[]> {
+  const all = await (await db()).getAllKeysFromIndex("bible", "translation", translation);
+  const prefix = `${translation}/${book}/`;
+  return all
+    .map(String)
+    .filter((k) => k.startsWith(prefix))
+    .map((k) => Number(k.slice(prefix.length)))
+    .sort((a, b) => a - b);
+}
+
+/** Removes a translation's text from this device. */
+export async function removeBibleTranslation(code: string): Promise<void> {
+  const d = await db();
+  const tx = d.transaction(["bible", "meta"], "readwrite");
+  const store = tx.objectStore("bible");
+  for (const key of await store.index("translation").getAllKeys(code)) await store.delete(key);
+  const meta = tx.objectStore("meta");
+  const current = { ...DEFAULT_META, ...((await meta.get("meta")) as Partial<Meta> | undefined) };
+  const offlineBible = { ...current.offlineBible };
+  delete offlineBible[code];
+  await meta.put({ ...current, offlineBible }, "meta");
+  await tx.done;
+}
+
 /** Rough storage use for the sync page (BK-033). */
 export async function storageEstimate(): Promise<{ usage: number; quota: number; persisted: boolean } | null> {
   if (!navigator.storage?.estimate) return null;
@@ -191,8 +264,9 @@ export async function storageEstimate(): Promise<{ usage: number; quota: number;
 /** Wipes everything stored in this browser. Only used when nothing is waiting to be sent. */
 export async function wipeAll(): Promise<void> {
   const d = await db();
-  const tx = d.transaction(["notes", "outbox", "conflicts", "meta"], "readwrite");
+  const tx = d.transaction(["notes", "outbox", "conflicts", "meta", "bible"], "readwrite");
   await Promise.all([
+    tx.objectStore("bible").clear(),
     tx.objectStore("notes").clear(),
     tx.objectStore("outbox").clear(),
     tx.objectStore("conflicts").clear(),

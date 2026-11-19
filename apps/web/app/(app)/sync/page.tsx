@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OfflineBible } from "./OfflineBible";
 import { SyncOverview } from "./SyncOverview";
 
 export const metadata: Metadata = { title: "Offline en synchronisatie" };
@@ -11,6 +12,7 @@ export default function SyncPage() {
         Je kunt zonder internet schrijven. Wijzigingen worden op dit apparaat bewaard en verstuurd zodra er weer verbinding is.
       </p>
       <SyncOverview />
+      <OfflineBible />
     </>
   );
 }
