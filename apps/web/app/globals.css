@@ -607,7 +607,7 @@ span.alert { display: inline-block; padding: var(--space-1) var(--space-3); bord
   .sidebar { display: none; }
   .topbar {
     display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-    position: sticky; top: 0; z-index: var(--z-nav); height: var(--topbar-height);
+    position: relative; z-index: var(--z-nav); height: var(--topbar-height);
     padding: 0 var(--space-4); padding-top: env(safe-area-inset-top);
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
@@ -1101,7 +1101,6 @@ a.stat:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md);
   padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: var(--space-3);
   box-shadow: var(--shadow-sm);
 }
-@media (max-width: 767px) { .toolbar-wrap { top: var(--topbar-height); } }
 .toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding-right: var(--space-2); border-right: 1px solid var(--border); }
 .tool {
   display: inline-grid; place-items: center;
@@ -1268,3 +1267,11 @@ form.card, .settings-section { max-width: 780px; }
 .collection-items .part-actions { align-items: center; gap: var(--space-2); }
 .collection-items .part-actions .link-button { margin: 0; }
 .settings-section > .button-row:only-child { margin: 0; }
+
+/* Keep scrolled-to content (anchors, focused verses) clear of the sticky bars */
+html { scroll-padding-bottom: 160px; }
+@media (max-width: 767px) {
+  html { scroll-padding-bottom: calc(var(--bottom-nav-height) + 200px); }
+  .verse-notes { max-height: 28vh; }
+  .selection-actions .button { min-height: var(--control-sm); padding: 0 var(--space-3); }
+}
