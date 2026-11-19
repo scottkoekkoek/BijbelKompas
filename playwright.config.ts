@@ -27,6 +27,8 @@ export default defineConfig({
     command: `pnpm --filter @bk/web exec next start -p ${PORT}`,
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
+    // Sprint 11: the local, fictitious AI provider (never in production, sends nothing anywhere)
+    env: { ...process.env, AI_PROVIDER: "fictief" } as Record<string, string>,
     timeout: 120_000,
   },
 });

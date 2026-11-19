@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { NoteSuggestions } from "@/components/ai/NoteSuggestions";
 import { NoteCollections } from "@/components/collections/NoteCollections";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
 import { LocalNote } from "@/components/notes/LocalNote";
+import { configuredProvider } from "@/lib/ai/provider";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { collectionsOfNote, listCollections, questionsOfNote } from "@/lib/collections/data";
 import { buildTree, flatten } from "@/lib/collections/tree";
@@ -29,14 +31,16 @@ export default async function NotePage({ params }: Props) {
   const r = await load((await params).id);
   if (!r?.note) notFound();
   const { supabase, note } = r;
-  const [books, translations, suggestions, collections, memberOf, questions] = await Promise.all([
+  const [books, translations, suggestions, collections, memberOf, questions, prefs] = await Promise.all([
     getBooks(supabase),
     getTranslations(supabase),
     getSermonSuggestions(supabase),
     listCollections(supabase),
     collectionsOfNote(supabase, note.id),
     questionsOfNote(supabase, note.id),
+    supabase.from("user_preferences").select("ai_enabled").maybeSingle(),
   ]);
+  const provider = configuredProvider();
   const translation = pickTranslation(translations, undefined, null);
 
   return (
@@ -66,6 +70,11 @@ export default async function NotePage({ params }: Props) {
         collections={flatten(buildTree(collections)).map(({ id, name, depth }) => ({ id, name, depth }))}
         memberOf={memberOf}
         questions={questions}
+      />
+      <NoteSuggestions
+        noteId={note.id}
+        aiEnabled={prefs.data?.ai_enabled === true}
+        provider={provider ? { name: provider.name, external: provider.external } : null}
       />
     </article>
   );
