@@ -27,11 +27,12 @@ test("dark theme keeps enough contrast", async ({ page }) => {
   await expectNoSeriousViolations(page);
 });
 
-test("navigation matches the screen size", async ({ page, isMobile }) => {
+test("navigation matches the screen size", async ({ page }) => {
   await login(page);
+  const narrow = (page.viewportSize()?.width ?? 1280) < 768; // phones and tablets held upright
   const sidebar = page.locator(".sidebar");
   const bottom = page.locator(".bottom-nav");
-  if (isMobile) {
+  if (narrow) {
     await expect(sidebar).toBeHidden();
     await expect(bottom).toBeVisible();
     for (const label of ["Home", "Bijbel", "Notities", "Zoeken", "Meer"]) {
@@ -43,8 +44,8 @@ test("navigation matches the screen size", async ({ page, isMobile }) => {
   }
 });
 
-test("the skip link and menu work with the keyboard", async ({ page, isMobile }) => {
-  test.skip(isMobile, "keyboard test on desktop");
+test("the skip link and menu work with the keyboard", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1280) < 768, "the sidebar is only there on wide screens");
   await login(page);
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Naar de inhoud" })).toBeFocused();

@@ -185,7 +185,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
 
   /** Fallback when this browser cannot store anything (storage full or blocked): straight to the server. */
   const saveDirect = useCallback(
-    async (content: LocalContent, opts: SaveOpts, snapshot: number) => {
+    async (content: LocalContent, opts: SaveOpts, snapshot: number, storageFull = false) => {
+      // AT-14: a full device is said plainly, also when the server did take the text
+      const full = "De opslag op dit apparaat is vol, dus offline bewaren lukt nu niet. Ruim ruimte op via Offline en synchronisatie.";
       try {
         const res = await fetch(`/api/v1/notes/${note.id}`, {
           method: "PUT",
@@ -199,6 +201,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
           setStatus(body.status);
           setRevision(body.currentRevision);
           setSaveState(changes.current === saved.current ? "opgeslagen" : "wijzigingen");
+          if (storageFull) setMessage(full);
         } else if (res.status === 409) {
           conflict.current = true;
           setSaveState("conflict");
@@ -209,7 +212,11 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         }
       } catch {
         setSaveState("fout");
-        setMessage("Niet opgeslagen: geen verbinding en deze browser kan niets lokaal bewaren. Je tekst blijft staan; we proberen het opnieuw.");
+        setMessage(
+          storageFull
+            ? `Niet opgeslagen: geen verbinding en ${full.charAt(0).toLowerCase()}${full.slice(1)} Je tekst blijft staan; we proberen het opnieuw.`
+            : "Niet opgeslagen: geen verbinding en deze browser kan niets lokaal bewaren. Je tekst blijft staan; we proberen het opnieuw.",
+        );
         retryTimer.current = setTimeout(() => void saveRef.current(opts), RETRY_MS);
       }
     },
@@ -244,8 +251,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         );
         setSaveState(changes.current === saved.current ? "lokaal" : "wijzigingen");
         syncEngine.syncSoon(opts.reason || opts.status ? 0 : 300);
-      } catch {
-        await saveDirect(content, opts, snapshot);
+      } catch (err) {
+        const name = (err as { name?: string })?.name ?? "";
+        await saveDirect(content, opts, snapshot, name === "QuotaExceededError" || (err as { inner?: { name?: string } })?.inner?.name === "QuotaExceededError");
       } finally {
         inFlight.current = false;
       }

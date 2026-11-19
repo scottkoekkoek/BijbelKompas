@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
+const TABLET = /(a11y|bible|notes|sprint9|sprint10)\.spec\.ts$/;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -17,6 +18,10 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobiel", use: { ...devices["Pixel 7"] } },
+    // BK-058 / AT-19: tablets, upright (phone layout) and on its side (sidebar). The flows that differ
+    // per screen size run here; the rest is covered by desktop and phone.
+    { name: "tablet", use: { ...devices["Galaxy Tab S4"] }, testMatch: TABLET },
+    { name: "tablet-liggend", use: { ...devices["Galaxy Tab S4 landscape"] }, testMatch: TABLET },
   ],
   webServer: {
     command: `pnpm --filter @bk/web exec next start -p ${PORT}`,
