@@ -51,7 +51,7 @@ export function SyncIndicator({ href = "/sync" }: { href?: string }) {
   return (
     <Link href={href} className={`sync-indicator ${tone}`} aria-label={`Synchronisatie: ${text}`}>
       <span className="sync-dot" aria-hidden="true" />
-      <span>{text}</span>
+      <span className="sync-text">{text}</span>
     </Link>
   );
 }

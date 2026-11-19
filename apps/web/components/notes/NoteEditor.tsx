@@ -1,4 +1,5 @@
 "use client";
+import { Bold, Heading2, Heading3, Italic, List, ListOrdered, Quote } from "lucide-react";
 import {
   NOTE_TYPE_LABELS,
   NoteType,
@@ -505,7 +506,7 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
     }),
   });
 
-  const btn = (label: string, active: boolean, run: () => void, text: string) => (
+  const btn = (label: string, active: boolean, run: () => void, text: React.ReactNode) => (
     <button type="button" className="tool" aria-pressed={active} aria-label={label} title={label} onMouseDown={(e) => e.preventDefault()} onClick={run}>
       {text}
     </button>
@@ -575,13 +576,13 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
   return (
     <div className="toolbar-wrap">
       <div className="toolbar" role="toolbar" aria-label="Opmaak">
-        {btn("Vet", s.bold, () => editor.chain().focus().toggleBold().run(), "B")}
-        {btn("Cursief", s.italic, () => editor.chain().focus().toggleItalic().run(), "I")}
-        {btn("Kop", s.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "H2")}
-        {btn("Subkop", s.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "H3")}
-        {btn("Opsomming", s.bullet, () => editor.chain().focus().toggleBulletList().run(), "•")}
-        {btn("Genummerde lijst", s.ordered, () => editor.chain().focus().toggleOrderedList().run(), "1.")}
-        {btn("Citaat", s.quote, () => editor.chain().focus().toggleBlockquote().run(), "❝")}
+        {btn("Vet", s.bold, () => editor.chain().focus().toggleBold().run(), <Bold size={18} strokeWidth={2.25} aria-hidden="true" />)}
+        {btn("Cursief", s.italic, () => editor.chain().focus().toggleItalic().run(), <Italic size={18} strokeWidth={2.25} aria-hidden="true" />)}
+        {btn("Kop", s.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), <Heading2 size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Subkop", s.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), <Heading3 size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Opsomming", s.bullet, () => editor.chain().focus().toggleBulletList().run(), <List size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Genummerde lijst", s.ordered, () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Citaat", s.quote, () => editor.chain().focus().toggleBlockquote().run(), <Quote size={18} strokeWidth={2} aria-hidden="true" />)}
       </div>
       <form className="ref-form" onSubmit={insertReference}>
         <label htmlFor={`${id}-ref`} className="visually-hidden">

@@ -1,6 +1,7 @@
 import { NOTE_TYPE_LABELS, NoteStatus, NoteType } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NoteIcon } from "@/components/icons";
 import { listNotes } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,6 +27,7 @@ export default async function NotesPage({ searchParams }: Props) {
         <h1>{archived ? "Archief" : "Notities"}</h1>
         {!archived && (
           <Link className="button" href="/notes/new">
+            <NoteIcon size={18} />
             Nieuwe notitie
           </Link>
         )}

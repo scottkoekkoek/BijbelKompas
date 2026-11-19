@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { signOut } from "@/app/auth/actions";
 import { listOutbox, wipeAll } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
+import { LogOutIcon } from "@/components/icons";
 
 export function LogoutButton() {
   const id = useId();
@@ -45,21 +46,33 @@ export function LogoutButton() {
 
   return (
     <>
-      <button type="button" className="button secondary" disabled={busy} onClick={() => void start()}>
-        Uitloggen
+      <button type="button" className="button secondary" disabled={busy} onClick={() => void start()} title="Uitloggen">
+        <LogOutIcon />
+        <span className="button-label">Uitloggen</span>
       </button>
       {waiting !== null && (
-        <div ref={dialog} tabIndex={-1} className="alert error logout-warning" role="alertdialog" aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`}>
-          <p id={`${id}-t`}><strong>Er {waiting === 1 ? "is 1 wijziging" : `zijn ${waiting} wijzigingen`} nog niet verstuurd.</strong></p>
-          <p id={`${id}-d`}>
-            Als je nu uitlogt, blijft je tekst op dit apparaat bewaard en wordt hij verstuurd zodra je hier weer inlogt.
-            Maak eerst verbinding met internet als je hem op andere apparaten wilt zien.
-          </p>
-          <div className="button-row">
-            <button type="button" className="button" onClick={() => setWaiting(null)}>Ingelogd blijven</button>
-            <button type="button" className="button secondary" disabled={busy} onClick={() => void leave(false)}>
-              Toch uitloggen (tekst blijft op dit apparaat)
-            </button>
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setWaiting(null)}>
+          <div
+            ref={dialog}
+            tabIndex={-1}
+            className="modal logout-warning"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`${id}-t`}
+            aria-describedby={`${id}-d`}
+            onKeyDown={(e) => e.key === "Escape" && setWaiting(null)}
+          >
+            <h2 id={`${id}-t`}>Er {waiting === 1 ? "is 1 wijziging" : `zijn ${waiting} wijzigingen`} nog niet verstuurd.</h2>
+            <p id={`${id}-d`} className="muted">
+              Als je nu uitlogt, blijft je tekst op dit apparaat bewaard en wordt hij verstuurd zodra je hier weer inlogt.
+              Maak eerst verbinding met internet als je hem op andere apparaten wilt zien.
+            </p>
+            <div className="button-row">
+              <button type="button" className="button secondary" disabled={busy} onClick={() => void leave(false)}>
+                Toch uitloggen (tekst blijft op dit apparaat)
+              </button>
+              <button type="button" className="button" onClick={() => setWaiting(null)}>Ingelogd blijven</button>
+            </div>
           </div>
         </div>
       )}

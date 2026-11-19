@@ -1,46 +1,67 @@
-// Simple inline icons (no external icon library). Decorative: aria-hidden.
-type Props = { size?: number };
-const base = (size: number) => ({
-  width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
-  strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true,
-});
+// One icon set for the whole app: Lucide (ISC licence), with a consistent stroke.
+// Every icon here is decorative (aria-hidden); the link or button around it carries the name.
+import {
+  Archive,
+  ArrowRight,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Clock,
+  Compass,
+  Download,
+  Ellipsis,
+  FileText,
+  FolderOpen,
+  GitCommitVertical,
+  House,
+  LayoutTemplate,
+  LogOut,
+  type LucideIcon,
+  NotebookPen,
+  PenLine,
+  RefreshCw,
+  Search,
+  Settings,
+  Sparkles,
+} from "lucide-react";
 
-export const CompassIcon = ({ size = 28 }: Props) => (
-  <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></svg>
-);
-export const HomeIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><path d="M4 11 12 4l8 7" /><path d="M6 10v9h12v-9" /></svg>
-);
-export const BookIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" /><path d="M5 17a3 3 0 0 1 3-3h10" /></svg>
-);
-export const NoteIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h5" /></svg>
-);
-export const TemplateIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h4" /></svg>
-);
-export const SearchIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></svg>
-);
-export const MoreIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><circle cx="5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /></svg>
-);
-export const SettingsIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>
-);
-export const ChevronLeftIcon = ({ size = 18 }: Props) => (
-  <svg {...base(size)}><path d="m15 5-7 7 7 7" /></svg>
-);
-export const ChevronRightIcon = ({ size = 18 }: Props) => (
-  <svg {...base(size)}><path d="m9 5 7 7-7 7" /></svg>
-);
-export const FolderIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><path d="M3 6h6l2 2h10v11H3z" /></svg>
-);
-export const QuestionIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" /><path d="M12 17h.01" /></svg>
-);
-export const TimelineIcon = ({ size = 22 }: Props) => (
-  <svg {...base(size)}><path d="M6 3v18" /><circle cx="6" cy="7" r="2" /><circle cx="6" cy="17" r="2" /><path d="M10 7h9M10 17h7" /></svg>
-);
+type Props = { size?: number };
+
+function make(Icon: LucideIcon, defaultSize: number) {
+  const Wrapped = ({ size = defaultSize }: Props) => <Icon size={size} strokeWidth={1.75} aria-hidden="true" focusable="false" />;
+  Wrapped.displayName = `${Icon.displayName ?? "Lucide"}Icon`;
+  return Wrapped;
+}
+
+export const CompassIcon = make(Compass, 28);
+export const HomeIcon = make(House, 22);
+export const BookIcon = make(BookOpen, 22);
+export const NoteIcon = make(NotebookPen, 22);
+export const TemplateIcon = make(LayoutTemplate, 22);
+export const SearchIcon = make(Search, 22);
+export const MoreIcon = make(Ellipsis, 22);
+export const SettingsIcon = make(Settings, 22);
+export const ChevronLeftIcon = make(ChevronLeft, 18);
+export const ChevronRightIcon = make(ChevronRight, 18);
+export const FolderIcon = make(FolderOpen, 22);
+export const QuestionIcon = make(CircleHelp, 22);
+export const TimelineIcon = make(GitCommitVertical, 22);
+export const LogOutIcon = make(LogOut, 20);
+export const SyncIcon = make(RefreshCw, 20);
+export const PenIcon = make(PenLine, 20);
+export const FileIcon = make(FileText, 20);
+export const ArchiveIcon = make(Archive, 20);
+export const ClockIcon = make(Clock, 20);
+export const ArrowRightIcon = make(ArrowRight, 18);
+export const DownloadIcon = make(Download, 20);
+export const SparklesIcon = make(Sparkles, 20);
+
+/** The app mark: a compass on the evergreen tile. */
+export function BrandMark() {
+  return (
+    <span className="brand-mark" aria-hidden="true">
+      <Compass size={20} strokeWidth={2} />
+    </span>
+  );
+}

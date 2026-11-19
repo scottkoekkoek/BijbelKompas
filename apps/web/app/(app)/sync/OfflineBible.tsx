@@ -72,7 +72,7 @@ export function OfflineBible() {
   }
 
   return (
-    <section aria-labelledby="sync-bible">
+    <section className="settings-section" aria-labelledby="sync-bible">
       <h2 id="sync-bible">Bijbel op dit apparaat</h2>
       <p className="page-intro">
         Een vertaling die offline mag, kun je op dit apparaat bewaren om zonder internet te lezen. De HSV en NBV21 zijn

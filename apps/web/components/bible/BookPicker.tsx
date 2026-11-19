@@ -32,7 +32,7 @@ export function BookPicker({ books }: { books: BibleBook[] }) {
       {groups.map(
         (g) =>
           g.list.length > 0 && (
-            <section key={g.key} aria-labelledby={`${id}-${g.key}`}>
+            <section key={g.key} className="book-section" aria-labelledby={`${id}-${g.key}`}>
               <h2 id={`${id}-${g.key}`}>{g.title}</h2>
               <ul className="book-list">
                 {g.list.map((b) => (
