@@ -50,6 +50,8 @@ export type ExportData = {
   questions?: unknown[];
   questionNotes?: unknown[];
   questionPassages?: unknown[];
+  /** Sprint 9 (BK-013) */
+  highlights?: unknown[];
 };
 
 export function linksOf(doc: ExportNote["document"]): ExportNote["passageLinks"] {
@@ -172,7 +174,7 @@ export function readme(data: ExportData): string {
     `Gemaakt op ${data.exportedAt.slice(0, 16).replace("T", " ")} (UTC). ${data.notes.length} notities.`,
     "",
     "- `bijbelkompas.json`: alles, volledig en machineleesbaar (notities, documenten, Bijbelkoppelingen, alle versies,",
-    "  collecties, onderzoeksvragen, sjablonen en voorkeuren). Dit bestand kan later weer worden ingelezen.",
+    "  collecties, onderzoeksvragen, markeringen, sjablonen en voorkeuren). Dit bestand kan later weer worden ingelezen.",
     "- `notities/`: elke notitie als leesbaar Markdown-bestand, met koppelingen en een lijst van versies.",
     "",
     "Bewaar deze export op een veilige plek: hij bevat al je persoonlijke notities.",

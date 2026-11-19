@@ -5,3 +5,4 @@ export * from "./bible";
 export * from "./notes";
 export * from "./sync";
 export * from "./collections";
+export * from "./reader";

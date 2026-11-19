@@ -41,6 +41,7 @@ export const ImportExtras = z.object({
   questionNotes: Rows,
   questionPassages: Rows,
   templates: Rows,
+  highlights: Rows,
 });
 export type ImportExtras = z.infer<typeof ImportExtras>;
 
@@ -76,7 +77,7 @@ export function readExport(raw: unknown): { ok: true; data: ParsedExport } | { o
     notes.push({ note: note.data, revisions: [...revisions.data].sort((a, b) => a.number - b.number) });
   }
   const extras = ImportExtras.safeParse(raw);
-  if (!extras.success) return { ok: false, message: "De collecties, vragen of sjablonen in de export zijn beschadigd." };
+  if (!extras.success) return { ok: false, message: "De collecties, vragen, markeringen of sjablonen in de export zijn beschadigd." };
   return { ok: true, data: { exportedAt: top.data.exportedAt ?? null, notes, extras: extras.data } };
 }
 

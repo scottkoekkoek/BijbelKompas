@@ -128,7 +128,7 @@ describe("translation rights", () => {
   it("hides disabled translations and their text", async () => {
     await db.query("begin");
     try {
-      await db.query("update public.bible_translations set enabled = false where code = 'TEST'");
+      await db.query("update public.bible_translations set enabled = false where code in ('TEST', 'TEST2')");
       await db.query("set local role authenticated");
       await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: user, role: "authenticated" })]);
       const t = await db.query("select 1 from public.bible_translations where code = 'TEST'");
@@ -143,7 +143,7 @@ describe("translation rights", () => {
   it("hides text once a licence has expired", async () => {
     await db.query("begin");
     try {
-      await db.query("update public.bible_translations set license_expires_at = now() - interval '1 day' where code = 'TEST'");
+      await db.query("update public.bible_translations set license_expires_at = now() - interval '1 day' where code in ('TEST', 'TEST2')");
       await db.query("set local role authenticated");
       await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: user, role: "authenticated" })]);
       expect((await db.query("select 1 from public.translation_segments")).rowCount).toBe(0);

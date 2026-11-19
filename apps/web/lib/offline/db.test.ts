@@ -1,7 +1,21 @@
 import "fake-indexeddb/auto";
 import { EMPTY_SERMON, type Note } from "@bk/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getStored, listOutbox, rememberServerNote, resetDbForTests, saveLocal, wipeAll } from "./db";
+import {
+  db,
+  DB_VERSION,
+  getBibleChapter,
+  getMeta,
+  getStored,
+  listOutbox,
+  rememberServerNote,
+  removeBibleTranslation,
+  resetDbForTests,
+  saveBibleBook,
+  saveLocal,
+  storedChapters,
+  wipeAll,
+} from "./db";
 import type { LocalContent } from "./types";
 import { noteFromStored } from "./view";
 
@@ -57,5 +71,53 @@ describe("offline storage", () => {
     await wipeAll();
     expect(await listOutbox()).toEqual([]);
     expect(await getStored(ID)).toBeUndefined();
+  });
+});
+
+describe("Bible offline (BK-014)", () => {
+  const T = { code: "TEST", name: "Testvertaling (fictief)", attribution: null };
+  const chapters = [
+    { chapter: 1, verses: [{ verse: 1, text: "[TESTTEKST] een" }, { verse: 2, text: "[TESTTEKST] twee" }] },
+    { chapter: 2, verses: [{ verse: 1, text: "[TESTTEKST] drie" }] },
+  ];
+
+  it("keeps chapters per translation and removes them again", async () => {
+    await saveBibleBook(T, "GEN", chapters);
+    await saveBibleBook(T, "OBA", []); // a book without text is not listed
+    expect((await getMeta()).offlineBible.TEST).toMatchObject({ books: ["GEN"], chapters: 2 });
+    expect((await getBibleChapter("TEST", "GEN", 1))?.verses).toHaveLength(2);
+    expect(await storedChapters("TEST", "GEN")).toEqual([1, 2]);
+    await removeBibleTranslation("TEST");
+    expect(await getBibleChapter("TEST", "GEN", 1)).toBeUndefined();
+    expect((await getMeta()).offlineBible).toEqual({});
+  });
+
+  it("upgrades a version 1 database without losing notes", async () => {
+    await db();
+    resetDbForTests();
+    await new Promise<void>((resolve, reject) => {
+      const del = indexedDB.deleteDatabase("bijbelkompas");
+      del.onsuccess = () => resolve();
+      del.onerror = () => reject(del.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open("bijbelkompas", 1);
+      open.onupgradeneeded = () => {
+        const d = open.result;
+        d.createObjectStore("notes", { keyPath: "id" }).put({ id: ID, server: null, local: local("van voor de update"), localUpdatedAt: 1, pinned: false, openedAt: 1 });
+        d.createObjectStore("outbox", { keyPath: "noteId" });
+        d.createObjectStore("conflicts", { keyPath: "id" });
+        d.createObjectStore("meta");
+      };
+      open.onsuccess = () => {
+        open.result.close();
+        resolve();
+      };
+      open.onerror = () => reject(open.error);
+    });
+    expect((await getStored(ID))?.local?.document).toEqual(doc("van voor de update"));
+    expect((await db()).version).toBe(DB_VERSION);
+    await saveBibleBook(T, "GEN", chapters);
+    expect(await storedChapters("TEST", "GEN")).toEqual([1, 2]);
   });
 });

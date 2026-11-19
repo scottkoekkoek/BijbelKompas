@@ -12,6 +12,8 @@ export type ReaderTranslation = {
   attribution: string | null;
   externalUrl: string | null;
   hasText: boolean;
+  /** BK-014: the text may be kept on a device (only with text rights) */
+  offlineAllowed: boolean;
 };
 
 /** Translations whose text may be shown (RLS already hides disabled ones). */
@@ -36,7 +38,7 @@ export async function getBooks(db: Db): Promise<BibleBook[]> {
 export async function getTranslations(db: Db): Promise<ReaderTranslation[]> {
   const { data, error } = await db
     .from("bible_translations")
-    .select("id, code, name, rights_status, attribution, external_url")
+    .select("id, code, name, rights_status, attribution, external_url, offline_allowed")
     .order("code");
   if (error) throw error;
   return (data ?? []).map((t) => ({
@@ -47,6 +49,7 @@ export async function getTranslations(db: Db): Promise<ReaderTranslation[]> {
     attribution: t.attribution,
     externalUrl: t.external_url,
     hasText: TEXT_ALLOWED.has(t.rights_status),
+    offlineAllowed: TEXT_ALLOWED.has(t.rights_status) && t.offline_allowed === true,
   }));
 }
 
@@ -92,6 +95,35 @@ export async function getChapter(
       .map((s) => ({ verse: Number(s.segment_key.slice(prefix.length)), text: s.text }))
       .filter((v) => Number.isInteger(v.verse) && v.verse > 0),
   };
+}
+
+/**
+ * BK-014: every chapter of a book in one translation, for keeping on the device. The caller checks
+ * offlineAllowed first; RLS also hides text whose licence has ended.
+ */
+export async function getBookForOffline(db: Db, translation: ReaderTranslation, book: BibleBook): Promise<{ chapter: number; verses: { verse: number; text: string }[] }[]> {
+  const rows: { segment_key: string; text: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from("translation_segments")
+      .select("segment_key, text")
+      .eq("translation_id", translation.id)
+      .like("segment_key", `${book.code}.%`)
+      .order("display_order")
+      .range(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000 || from > 50_000) break;
+  }
+  const chapters = new Map<number, { verse: number; text: string }[]>();
+  for (const r of rows) {
+    const [, c, v] = r.segment_key.split(".");
+    const chapter = Number(c);
+    const verse = Number(v);
+    if (!Number.isInteger(chapter) || !Number.isInteger(verse) || verse < 1) continue;
+    chapters.set(chapter, [...(chapters.get(chapter) ?? []), { verse, text: r.text }]);
+  }
+  return [...chapters.entries()].sort((a, b) => a[0] - b[0]).map(([chapter, verses]) => ({ chapter, verses }));
 }
 
 export async function getReadingPosition(db: Db) {

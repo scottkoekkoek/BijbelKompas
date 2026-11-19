@@ -29,6 +29,7 @@ describe("reading an export back (AT-15)", () => {
     if (!r.ok) throw new Error(r.message);
     expect(r.data.notes[0]!.revisions.map((x) => x.number)).toEqual([1, 2]);
     expect(r.data.extras.collections).toEqual([]);
+    expect(r.data.extras.highlights).toEqual([]); // exports from before Sprint 9 have none
   });
 
   it("refuses other files, newer versions and damaged notes with a clear message", () => {

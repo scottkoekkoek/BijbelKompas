@@ -1,7 +1,8 @@
 /*
  * BijbelKompas service worker (BK-029, ADR-006).
  * Caches ONLY the app shell: the static /offline page and the build files it needs. Personal notes
- * are never cached here; they live in IndexedDB. Pages that cannot load go to /offline.
+ * are never cached here; they live in IndexedDB. Pages that cannot load go to /offline. Bible text
+ * kept offline (BK-014) also lives in IndexedDB, never in this cache.
  */
 const SHELL = "bk-shell-v1";
 const STATIC = "bk-static-v1";
@@ -87,7 +88,17 @@ self.addEventListener("fetch", (event) => {
           return hit ?? new Response(OFFLINE_FALLBACK, { headers: { "content-type": "text/html; charset=utf-8" } });
         }
         const note = /^\/notes\/([0-9a-f-]{36})$/.exec(url.pathname);
-        const target = new URL(note ? `${OFFLINE_URL}?notitie=${note[1]}` : OFFLINE_URL, self.location.origin);
+        // BK-014: a Bible chapter opens from this device's own copy, if one was kept
+        const bible = /^\/bible\/([1-3]?[A-Za-z]{2,3})(?:\/(\d{1,3}))?$/.exec(url.pathname);
+        const v = (url.searchParams.get("v") || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 20);
+        const target = new URL(
+          note
+            ? `${OFFLINE_URL}?notitie=${note[1]}`
+            : bible
+              ? `${OFFLINE_URL}?bijbel=${[v, bible[1], bible[2]].filter(Boolean).join("/")}`
+              : OFFLINE_URL,
+          self.location.origin,
+        );
         return Response.redirect(target.href, 302);
       }),
     );

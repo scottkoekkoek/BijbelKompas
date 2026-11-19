@@ -41,10 +41,14 @@ export async function POST(request: Request) {
       if (error) throw error;
       return json({ added: data as number }, requestId);
     }
-    const { data, error } = await db.rpc("import_extras", { p: step.extras, p_note_map: step.noteMap });
+    const { highlights, ...extras } = step.extras;
+    const { data, error } = await db.rpc("import_extras", { p: extras, p_note_map: step.noteMap });
     if (error) throw error;
-    console.info(JSON.stringify({ level: "info", requestId, route: "POST /import", counts: data }));
-    return json({ added: data }, requestId);
+    const marked = await db.rpc("import_highlights", { p: highlights });
+    if (marked.error) throw marked.error;
+    const counts = { ...(data as Record<string, number>), highlights: marked.data as number };
+    console.info(JSON.stringify({ level: "info", requestId, route: "POST /import", counts }));
+    return json({ added: counts }, requestId);
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === "22023" || code === "23514" || code === "22P02" || code === "22007") {

@@ -72,7 +72,7 @@ export function ImportExport() {
           if (!r.ok && r.status !== 403) throw new Error(`De versies van “${note.title || "Naamloos"}” konden niet worden teruggezet.`);
         }
       }
-      setProgress("Collecties, vragen en sjablonen…");
+      setProgress("Collecties, vragen, markeringen en sjablonen…");
       const res = await post({ step: "extras", noteMap, extras: parsed.extras });
       const b = await res.json().catch(() => null);
       if (!res.ok) throw new Error(b?.error?.message ?? "Collecties, vragen en sjablonen konden niet worden teruggezet.");
@@ -100,7 +100,8 @@ export function ImportExport() {
           <p>
             Export{parsed.exportedAt ? ` van ${dateFmt.format(new Date(parsed.exportedAt))}` : ""}: {parsed.notes.length}{" "}
             {parsed.notes.length === 1 ? "notitie" : "notities"} met {revisions} {revisions === 1 ? "versie" : "versies"},{" "}
-            {parsed.extras.collections.length} collecties, {parsed.extras.questions.length} vragen en {parsed.extras.templates.length} sjablonen.
+            {parsed.extras.collections.length} collecties, {parsed.extras.questions.length} vragen, {parsed.extras.highlights.length} markeringen en{" "}
+            {parsed.extras.templates.length} sjablonen.
           </p>
           <p className="muted">
             Alles wordt toegevoegd aan je account. Wat er al in staat, wordt overgeslagen en nooit overschreven. Je voorkeuren
@@ -123,7 +124,8 @@ export function ImportExport() {
         <p className="alert ok" role="alert">
           Klaar. {result.added} {result.added === 1 ? "notitie" : "notities"} teruggezet
           {result.skipped > 0 && `, ${result.skipped} stond${result.skipped === 1 ? "" : "en"} er al en ${result.skipped === 1 ? "is" : "zijn"} overgeslagen`}.
-          {" "}Verder {result.extras.collections ?? 0} collecties, {result.extras.questions ?? 0} vragen en {result.extras.templates ?? 0} sjablonen toegevoegd.
+          {" "}Verder {result.extras.collections ?? 0} collecties, {result.extras.questions ?? 0} vragen, {result.extras.highlights ?? 0} markeringen en{" "}
+          {result.extras.templates ?? 0} sjablonen toegevoegd.
         </p>
       )}
     </div>
