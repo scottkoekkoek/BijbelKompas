@@ -3,6 +3,8 @@
 import {
   Archive,
   ArrowRight,
+  Columns2,
+  ExternalLink,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -55,6 +57,8 @@ export const ArchiveIcon = make(Archive, 20);
 export const ClockIcon = make(Clock, 20);
 export const ArrowRightIcon = make(ArrowRight, 18);
 export const DownloadIcon = make(Download, 20);
+export const CompareIcon = make(Columns2, 16);
+export const ExternalIcon = make(ExternalLink, 13);
 export const SparklesIcon = make(Sparkles, 20);
 
 /** The app mark: a compass on the evergreen tile. */

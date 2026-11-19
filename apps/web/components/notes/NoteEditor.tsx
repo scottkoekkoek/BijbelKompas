@@ -1,5 +1,5 @@
 "use client";
-import { Bold, Heading2, Heading3, Italic, List, ListOrdered, Quote } from "lucide-react";
+import { Bold, BookOpen, Heading2, Heading3, Italic, List, ListOrdered, Quote } from "lucide-react";
 import {
   NOTE_TYPE_LABELS,
   NoteType,
@@ -377,7 +377,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
       )}
       <fieldset className="note-meta plain" disabled={elsewhere !== "no"}>
         <div className="field note-title">
-          <label htmlFor={`${ids}-title`}>Titel</label>
+          <label htmlFor={`${ids}-title`} className="visually-hidden">Titel</label>
           <input id={`${ids}-title`} type="text" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="Naamloze notitie" />
         </div>
         <div className="field">
@@ -410,6 +410,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         </fieldset>
       )}
 
+      <div className="doc-bar">
       <div className="note-status-row">
         <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
         <span className={`save-state ${saveState}`} role="status" aria-live="polite">
@@ -420,6 +421,21 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
             {revision} {revision === 1 ? "versie" : "versies"}
           </Link>
         )}
+      </div>
+      <div className="note-actions">
+        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })}>
+          Opslaan als versie
+        </button>
+        {status === "concept" ? (
+          <button type="button" className="button" disabled={locked} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
+            Afronden
+          </button>
+        ) : (
+          <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ status: "concept" })}>
+            Terugzetten naar concept
+          </button>
+        )}
+      </div>
       </div>
 
       {saveState === "conflict" && (
@@ -448,20 +464,6 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
       <EditorContent editor={editor} className="note-content" />
 
       {message && <p className="copy-status">{message}</p>}
-      <div className="button-row note-actions">
-        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })}>
-          Opslaan als versie
-        </button>
-        {status === "concept" ? (
-          <button type="button" className="button" disabled={locked} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
-            Afronden
-          </button>
-        ) : (
-          <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ status: "concept" })}>
-            Terugzetten naar concept
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -578,13 +580,16 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
       <div className="toolbar" role="toolbar" aria-label="Opmaak">
         {btn("Vet", s.bold, () => editor.chain().focus().toggleBold().run(), <Bold size={18} strokeWidth={2.25} aria-hidden="true" />)}
         {btn("Cursief", s.italic, () => editor.chain().focus().toggleItalic().run(), <Italic size={18} strokeWidth={2.25} aria-hidden="true" />)}
+        <span className="tool-sep" aria-hidden="true" />
         {btn("Kop", s.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), <Heading2 size={19} strokeWidth={2} aria-hidden="true" />)}
         {btn("Subkop", s.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), <Heading3 size={19} strokeWidth={2} aria-hidden="true" />)}
+        <span className="tool-sep" aria-hidden="true" />
         {btn("Opsomming", s.bullet, () => editor.chain().focus().toggleBulletList().run(), <List size={19} strokeWidth={2} aria-hidden="true" />)}
         {btn("Genummerde lijst", s.ordered, () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={19} strokeWidth={2} aria-hidden="true" />)}
         {btn("Citaat", s.quote, () => editor.chain().focus().toggleBlockquote().run(), <Quote size={18} strokeWidth={2} aria-hidden="true" />)}
       </div>
       <form className="ref-form" onSubmit={insertReference}>
+        <BookOpen className="ref-form-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
         <label htmlFor={`${id}-ref`} className="visually-hidden">
           Bijbelverwijzing invoegen
         </label>

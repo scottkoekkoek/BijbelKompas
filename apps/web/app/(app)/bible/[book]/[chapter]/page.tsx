@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CompareView } from "@/components/bible/CompareView";
 import { HighlightList } from "@/components/bible/HighlightList";
 import { VerseList } from "@/components/bible/VerseList";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import { ChevronLeftIcon, ChevronRightIcon, CompareIcon, ExternalIcon } from "@/components/icons";
 import { neighbours, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { chapterHighlights, compareChapter } from "@/lib/reader/data";
@@ -65,39 +65,75 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         <h1>
           {book.name} {chapter}
         </h1>
-        <nav aria-label="Vertaling" className="translation-switch">
-          {readable.map((t) => (
-            <Link
-              key={t.code}
-              href={readerPath(book.code, chapter, t.code)}
-              aria-current={t.code === translation?.code ? "true" : undefined}
-              title={t.name}
-            >
-              {t.code}
+        <div className="reader-step" aria-label="Hoofdstuk wisselen" role="group">
+          {prev ? (
+            <Link className="icon-button" href={readerPath(prev.book.code, prev.chapter, translation?.code)} aria-label="Vorig hoofdstuk" title={`${prev.book.name} ${prev.chapter}`}>
+              <ChevronLeftIcon size={20} />
             </Link>
-          ))}
-          {references.map((t) => (
-            <a key={t.code} href={t.externalUrl!} target="_blank" rel="noopener noreferrer" title={`${t.name} (externe website)`}>
-              {t.code}
-              <span aria-hidden="true"> ↗</span>
-              <span className="visually-hidden"> (opent externe website)</span>
-            </a>
-          ))}
-        </nav>
+          ) : (
+            <span className="icon-button" aria-hidden="true" data-disabled="true">
+              <ChevronLeftIcon size={20} />
+            </span>
+          )}
+          {next ? (
+            <Link className="icon-button" href={readerPath(next.book.code, next.chapter, translation?.code)} aria-label="Volgend hoofdstuk" title={`${next.book.name} ${next.chapter}`}>
+              <ChevronRightIcon size={20} />
+            </Link>
+          ) : (
+            <span className="icon-button" aria-hidden="true" data-disabled="true">
+              <ChevronRightIcon size={20} />
+            </span>
+          )}
+        </div>
       </header>
-      {translation && readable.length > 1 && (
-        <nav aria-label="Vergelijk met" className="translation-switch compare-switch">
-          <span className="muted">Vergelijk met:</span>
-          {readable
-            .filter((t) => t.code !== translation.code)
-            .map((t) => (
-              <Link key={t.code} href={comparePath(t.code)} aria-current={t.code === other?.code ? "true" : undefined} title={t.name}>
+
+      <div className="reader-tools">
+        <nav aria-label="Vertaling" className="translation-switch">
+          <span className="segmented">
+            {readable.map((t) => (
+              <Link
+                key={t.code}
+                href={readerPath(book.code, chapter, t.code)}
+                aria-current={t.code === translation?.code ? "true" : undefined}
+                title={t.name}
+              >
                 {t.code}
               </Link>
             ))}
-          {other && <Link href={readerPath(book.code, chapter, translation.code)}>Vergelijken sluiten</Link>}
+          </span>
+          {references.length > 0 && (
+            <span className="external-translations">
+              {references.map((t) => (
+                <a key={t.code} href={t.externalUrl!} target="_blank" rel="noopener noreferrer" title={`${t.name} (externe website)`}>
+                  {t.code}
+                  <ExternalIcon />
+                  <span className="visually-hidden"> (opent externe website)</span>
+                </a>
+              ))}
+            </span>
+          )}
         </nav>
-      )}
+        {translation && readable.length > 1 && (
+          <nav aria-label="Vergelijk met" className="translation-switch compare-switch">
+            <span className="compare-label">
+              <CompareIcon />
+              <span>Vergelijk</span>
+            </span>
+            {readable
+              .filter((t) => t.code !== translation.code)
+              .map((t) => (
+                <Link key={t.code} href={comparePath(t.code)} aria-current={t.code === other?.code ? "true" : undefined} title={`Vergelijk met ${t.name}`}>
+                  {t.code}
+                </Link>
+              ))}
+            {other && (
+              <Link className="compare-close" href={readerPath(book.code, chapter, translation.code)}>
+                Vergelijken sluiten
+              </Link>
+            )}
+          </nav>
+        )}
+      </div>
 
       {!data ? (
         <p className="placeholder">Er is nog geen vertaling met tekst beschikbaar.</p>
@@ -127,31 +163,46 @@ export default async function ReaderPage({ params, searchParams }: Props) {
 
       {!compared && <HighlightList highlights={highlights} />}
 
-      {notesInChapter.length > 0 && (
-        <section className="chapter-notes" aria-labelledby="chapter-notes-title">
-          <h2 id="chapter-notes-title">Notities bij dit hoofdstuk</h2>
-          <ul>
-            {notesInChapter.map((n) => (
-              <li key={n.note_id}>
-                <Link href={`/notes/${n.note_id}`}>{n.title || "Naamloze notitie"}</Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {questions.length > 0 && (
-        <section className="chapter-notes" aria-labelledby="chapter-questions-title">
-          <h2 id="chapter-questions-title">Vragen bij dit hoofdstuk</h2>
-          <ul>
-            {questions.map((q) => (
-              <li key={q.question_id}>
-                <Link href={`/questions/${q.question_id}`}>{q.title}</Link>
-                <span className="muted"> · {q.label}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {(notesInChapter.length > 0 || questions.length > 0) && (
+        <div className="chapter-links">
+          {notesInChapter.length > 0 && (
+            <section className="chapter-notes" aria-labelledby="chapter-notes-title">
+              <h2 id="chapter-notes-title">
+                Notities bij dit hoofdstuk <span className="count" aria-hidden="true">{notesInChapter.length}</span>
+              </h2>
+              <ul className="chip-list">
+                {notesInChapter.map((n) => {
+                  const verses = [...new Set(noteRows.filter((r) => r.note_id === n.note_id).map((r) => r.verse_number))].sort((x, y) => x - y);
+                  return (
+                    <li key={n.note_id}>
+                      <Link className="link-chip" href={`/notes/${n.note_id}`}>
+                        <span className="link-chip-title">{n.title || "Naamloze notitie"}</span>
+                        <span className="link-chip-meta">{verses.length === 1 ? `vers ${verses[0]}` : `verzen ${verses.join(", ")}`}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+          {questions.length > 0 && (
+            <section className="chapter-notes" aria-labelledby="chapter-questions-title">
+              <h2 id="chapter-questions-title">
+                Vragen bij dit hoofdstuk <span className="count" aria-hidden="true">{questions.length}</span>
+              </h2>
+              <ul className="chip-list">
+                {questions.map((q) => (
+                  <li key={q.question_id}>
+                    <Link className="link-chip" href={`/questions/${q.question_id}`}>
+                      <span className="link-chip-title">{q.title}</span>
+                      <span className="link-chip-meta">{q.label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       )}
 
       <nav className="chapter-nav" aria-label="Hoofdstukken">
