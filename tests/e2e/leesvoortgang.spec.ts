@@ -91,8 +91,11 @@ test("a failed save says so and changes nothing; a finished book has no jump (fe
 
   await page.goto("/bible/GEN/1?v=TEST");
   await page.route("**/api/v1/reading", (route) => route.abort());
-  await progress(page).getByRole("button", { name: "Markeer hoofdstuk als gelezen" }).click();
-  await expect(progress(page).getByRole("alert")).toHaveText("Je leesvoortgang is niet bewaard. Probeer het opnieuw.");
+  // a click before the page is interactive does nothing; the failed request changes nothing either
+  await expect(async () => {
+    await progress(page).getByRole("button", { name: "Markeer hoofdstuk als gelezen" }).click();
+    await expect(progress(page).getByRole("alert")).toHaveText("Je leesvoortgang is niet bewaard. Probeer het opnieuw.", { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   await page.unroute("**/api/v1/reading");
   await page.reload();
   await expect(progress(page).locator(".read-badge")).toHaveText("Ongelezen");

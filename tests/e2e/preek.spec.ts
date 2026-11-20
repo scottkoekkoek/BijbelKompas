@@ -110,15 +110,16 @@ test("a finished sermon opens in a calm reading view that changes nothing (featu
 
   // a passage far down in the sermon: back from the reader at the same place
   const late = page.locator(".sermon-text").getByRole("link", { name: "Genesis 1:3 lezen" });
+  await page.waitForTimeout(1500); // past the moment the view still restores the earlier place
   await late.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
   const place = await page.evaluate(() => window.scrollY);
   expect(place).toBeGreaterThan(200);
   await late.click();
   await expect(page).toHaveURL(/\/bible\/GEN\/1\?v=TEST&vers=3&terug=/);
   await page.getByRole("link", { name: "Terug naar de preek" }).click();
   await expect(page).toHaveURL(new RegExp(`/notes/${id}/preek$`));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(place - 60);
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThan(place - 60);
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(place + 60);
 
   await page.getByRole("link", { name: "Terug naar notitie" }).click();

@@ -1130,7 +1130,13 @@ a.icon-button:hover, button.icon-button:hover { background: var(--surface-2); co
   .chip-list::-webkit-scrollbar { display: none; }
   .chip-list > li { flex: 0 0 auto; scroll-snap-align: start; }
   .link-chip { max-width: 240px; }
-  .selection-bar { padding: var(--space-3); border-radius: var(--radius); }
+  /* stays above the fixed bottom navigation, and scrolls inside itself on a short screen */
+  .selection-bar {
+    padding: var(--space-3); border-radius: var(--radius);
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-2));
+    max-height: calc(100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--space-6));
+    overflow-y: auto; overscroll-behavior: contain;
+  }
   .selection-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 calc(var(--space-3) * -1); padding: 0 var(--space-3); }
   .selection-actions::-webkit-scrollbar { display: none; }
   .selection-actions .button { flex: 0 0 auto; }
@@ -1583,3 +1589,8 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 .read-badge.gelezen::before { content: "✓ "; }
 .verse.read .verse-num { color: var(--success); }
 .verse.read .verse-num::before { content: "✓"; font-size: 0.85em; margin-right: 1px; }
+@media (max-width: 767px) {
+  /* the smaller tools wrap instead of hiding off-screen to the right */
+  .selection-bar .selection-actions.tool-actions { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; gap: var(--space-1); }
+  .selection-bar .selection-actions.tool-actions .button { min-height: 40px; padding: 0 var(--space-2); }
+}
