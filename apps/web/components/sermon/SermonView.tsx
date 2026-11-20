@@ -73,14 +73,19 @@ export function SermonView({
   // back from the Bible reader: the same place in the sermon
   useEffect(() => {
     const saved = Number(read(() => sessionStorage, scrollKey(noteId)));
-    // the router scrolls a new page to the top after it mounts (and later again when content
-    // streams in); restore only while the page still sits at the top, so the reader is never pulled away
+    // The router scrolls a new page to the top after it mounts, and the layout can still shift
+    // (font size and panel restored, content streaming in). Keep putting the reader back for a
+    // moment, but stop as soon as they scroll, tap or type themselves.
+    let touched = false;
+    const touch = () => (touched = true);
+    const events = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
     const restore = () => {
-      if (saved > 0 && window.scrollY < 5) window.scrollTo({ top: saved, behavior: "instant" });
+      if (saved > 0 && !touched && Math.abs(window.scrollY - saved) > 2) window.scrollTo({ top: saved, behavior: "instant" });
     };
     const frame = requestAnimationFrame(restore);
-    const timers = [120, 350].map((ms) => window.setTimeout(restore, ms));
-    const ready = window.setTimeout(() => (restored.current = true), 400);
+    const timers = [60, 150, 300, 500, 800, 1200].map((ms) => window.setTimeout(restore, ms));
+    const ready = window.setTimeout(() => (restored.current = true), 1250);
     let pending = 0;
     const onScroll = () => {
       if (!restored.current || leaving.current || pending) return;
@@ -96,6 +101,7 @@ export function SermonView({
       timers.forEach((t) => window.clearTimeout(t));
       window.clearTimeout(ready);
       window.removeEventListener("scroll", onScroll);
+      events.forEach((e) => window.removeEventListener(e, touch));
     };
   }, [noteId]);
 
