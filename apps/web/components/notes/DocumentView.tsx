@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { readerPath } from "@/lib/bible";
+import { passagePath, type PassageTarget } from "@/lib/bible";
 import { Fragment } from "react";
 import { passagesOf, type PMNode } from "@/lib/notes/document";
 
@@ -19,7 +19,7 @@ export function DocumentView({ doc }: { doc: { content?: unknown[] } }) {
               {passages.map((p, j) => (
                 <Fragment key={j}>
                   {j > 0 && "; "}
-                  <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                  <Link href={passagePath(p)}>{p.label}</Link>
                 </Fragment>
               ))}
             </p>
@@ -66,13 +66,13 @@ function render(node: PMNode, key: number): ReactNode {
     case "horizontalRule":
       return <hr key={key} />;
     case "bibleReference": {
-      const a = node.attrs as { label: string; translation: string; book: string; startChapter: number };
+      const a = node.attrs as PassageTarget & { label: string; translation: string };
       return (
         <div key={key} className="ref-block">
           <span className="ref-label">{a.label}</span>
           <span className="ref-translation">{a.translation}</span>
           <span className="ref-actions">
-            <Link href={readerPath(a.book, a.startChapter, a.translation)}>Lees</Link>
+            <Link href={passagePath(a)} aria-label={`${a.label} lezen`}>Lees</Link>
           </span>
         </div>
       );

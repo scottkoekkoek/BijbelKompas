@@ -4,8 +4,9 @@ import Link from "next/link";
 import { AskNotes } from "@/components/ai/AskNotes";
 import { Highlight } from "@/components/Highlight";
 import { configuredProvider } from "@/lib/ai/provider";
-import { readerPath } from "@/lib/bible";
-import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
+import { passagePath, readerPath } from "@/lib/bible";
+import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
+import { referenceInSearch } from "@/lib/notes/reference";
 import { getSermonSuggestions, searchBible, searchNotes, type SearchFilters } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -50,6 +51,29 @@ export default async function SearchPage({ searchParams }: Props) {
       ])
     : [[], { total: 0, hits: [] }];
   const filtered = Object.entries(filters).some(([, v]) => v);
+
+  // audit BK-02: "Joh 3:16" is a place in the Bible, shown above the word results
+  const asRef = searching ? referenceInSearch(q, books) : null;
+  const refs = asRef && "refs" in asRef ? asRef.refs : [];
+  const passage =
+    refs.length === 1 && translation
+      ? await (async () => {
+          const r = refs[0]!;
+          const book = books.find((b) => b.code === r.book.code)!;
+          const chapterData = await getChapter(supabase, translation, book, r.startChapter);
+          const to = r.endChapter === r.startChapter ? r.endVerse : 999;
+          const verses = chapterData.verses.filter((v) => v.verse >= r.startVerse && v.verse <= to);
+          const { data: linked } = await supabase.rpc("passage_notes", {
+            p_translation: translation.code,
+            p_book: book.code,
+            p_chapter: r.startChapter,
+            p_start_verse: r.startVerse,
+            p_end_verse: to,
+          });
+          const notesHere = [...new Map(((linked ?? []) as { note_id: string; title: string }[]).map((n) => [n.note_id, n])).values()];
+          return { ref: r, verses: verses.slice(0, 8), more: verses.length > 8, exists: verses.length > 0 || chapterData.verses.length === 0, notesHere };
+        })()
+      : null;
 
   return (
     <>
@@ -121,10 +145,70 @@ export default async function SearchPage({ searchParams }: Props) {
         </details>
       </form>
 
+      {asRef && "error" in asRef && (
+        <p className="alert info" role="status">
+          {asRef.error} Hieronder staan de gewone zoekresultaten.
+        </p>
+      )}
+
+      {refs.length > 1 && (
+        <section className="passage-hit" aria-labelledby="passage-choice">
+          <h2 id="passage-choice">Welk Bijbelgedeelte bedoel je?</h2>
+          <ul className="chip-list">
+            {refs.map((r) => (
+              <li key={r.book.code}>
+                <Link className="link-chip" href={passagePath({ ...r, book: r.book.code, translation: translation?.code })}>
+                  <span className="link-chip-title">{r.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {passage && translation && (
+        <section className="passage-hit card" aria-labelledby="passage-title">
+          <h2 id="passage-title">
+            {passage.ref.label} <span className="muted">({translation.name})</span>
+          </h2>
+          {passage.exists ? (
+            <p className="passage-text">
+              {passage.verses.map((v) => (
+                <span key={v.verse}>
+                  <sup>{v.verse}</sup> {v.text}{" "}
+                </span>
+              ))}
+              {passage.more && "…"}
+            </p>
+          ) : (
+            <p className="muted">Dit vers bestaat niet in de {translation.name}.</p>
+          )}
+          <p className="button-row">
+            <Link className="button" href={passagePath({ ...passage.ref, book: passage.ref.book.code, translation: translation.code })}>
+              Lees in de Bijbel
+            </Link>
+          </p>
+          {passage.notesHere.length > 0 && (
+            <>
+              <h3>Notities bij deze verzen</h3>
+              <ul className="chip-list">
+                {passage.notesHere.slice(0, 6).map((n) => (
+                  <li key={n.note_id}>
+                    <Link className="link-chip" href={`/notes/${n.note_id}`}>
+                      <span className="link-chip-title">{n.title || "Naamloze notitie"}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
+
       {provider && <AskNotes initialQuestion={q} provider={{ name: provider.name, external: provider.external }} />}
 
       {!searching ? (
-        <p className="placeholder">Typ minstens twee letters. Je zoekt in titels en tekst van je notities en in de Bijbeltekst.</p>
+        <p className="placeholder">Typ minstens twee letters. Je zoekt in titels en tekst van je notities en in de Bijbeltekst. Een verwijzing zoals “Joh 3:16” brengt je direct naar die verzen.</p>
       ) : (
         <>
           <section aria-labelledby="note-results">

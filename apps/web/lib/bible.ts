@@ -49,3 +49,45 @@ export function filterBooks<T extends { name: string }>(books: T[], query: strin
 export function readerPath(book: string, chapter: number, translation?: string): string {
   return `/bible/${book}/${chapter}${translation ? `?v=${translation}` : ""}`;
 }
+
+export type PassageTarget = {
+  book: string;
+  startChapter: number;
+  startVerse: number;
+  endChapter: number;
+  endVerse: number;
+  translation?: string;
+};
+
+/**
+ * Audit BK-01: the one place that builds a link to a passage. It opens the start chapter at the
+ * exact verse (or range), marks it, and can carry the note to return to. A whole chapter
+ * (verse 1 to 999) stays a plain chapter link. A range that runs into the next chapter is marked
+ * up to the end of the start chapter.
+ */
+export function passagePath(p: PassageTarget, back?: string): string {
+  const base = readerPath(p.book, p.startChapter, p.translation);
+  const params: string[] = [];
+  const whole = p.startVerse <= 1 && p.endVerse >= 999;
+  if (!whole) {
+    const to = p.endChapter === p.startChapter ? Math.max(p.endVerse, p.startVerse) : 999;
+    params.push(`vers=${p.startVerse}${to !== p.startVerse ? `-${to}` : ""}`);
+  }
+  if (back && isBackPath(back)) params.push(`terug=${encodeURIComponent(back)}`);
+  const query = params.length ? `${base.includes("?") ? "&" : "?"}${params.join("&")}` : "";
+  return `${base}${query}${whole ? "" : `#v${p.startVerse}`}`;
+}
+
+/** Only a note page can be a way back (no open redirects). */
+export function isBackPath(path: string | undefined): path is string {
+  return !!path && /^\/notes\/[0-9a-f-]{36}$/.test(path);
+}
+
+/** Reads "16" or "16-18" from the reader's ?vers= parameter. */
+export function parseVerseTarget(raw: string | undefined): { from: number; to: number } | null {
+  const m = /^(\d{1,3})(?:-(\d{1,3}))?$/.exec(raw ?? "");
+  if (!m) return null;
+  const from = Number(m[1]);
+  const to = m[2] ? Number(m[2]) : from;
+  return from >= 1 && to >= from ? { from, to } : null;
+}
