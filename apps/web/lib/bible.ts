@@ -78,9 +78,9 @@ export function passagePath(p: PassageTarget, back?: string): string {
   return `${base}${query}${whole ? "" : `#v${p.startVerse}`}`;
 }
 
-/** Only a note page can be a way back (no open redirects). */
+/** Only a note page, or its sermon view, can be a way back (no open redirects). */
 export function isBackPath(path: string | undefined): path is string {
-  return !!path && /^\/notes\/[0-9a-f-]{36}$/.test(path);
+  return !!path && /^\/notes\/[0-9a-f-]{36}(\/preek)?$/.test(path);
 }
 
 /** Reads "16" or "16-18" from the reader's ?vers= parameter. */

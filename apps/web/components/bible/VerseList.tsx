@@ -10,6 +10,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import type { QuickPassage } from "@/lib/notes/quick";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { HighlightEditor } from "./HighlightEditor";
+import { markReading } from "./reading";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
 
 type LinkedNote = { noteId: string; title: string; blockId: string; reference: string; snippet: string };
@@ -26,10 +27,12 @@ type Props = {
   highlights?: ChapterHighlight[];
   /** audit BK-01: the verse or range a link pointed at; marked and scrolled into view */
   target?: { from: number; to: number } | null;
+  /** feature 6: verse numbers the owner marked as read */
+  read?: number[];
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null, read = [] }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
   const [marking, setMarking] = useState(false);
@@ -78,6 +81,23 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
     ? { translation: translationCode, book: bookCode, startChapter: chapter, startVerse: selection.from, endChapter: chapter, endVerse: selection.to, label: formatReference(bookName, chapter, selection) }
     : null;
   const isSelected = (n: number) => !!selection && n >= selection.from && n <= selection.to;
+  const isRead = (n: number) => read.includes(n);
+  // feature 6: a selection that is read completely can be marked unread again
+  const selectionRead = !!selection && verses.filter((v) => isSelected(v.verse)).every((v) => isRead(v.verse));
+
+  async function markRead(asRead: boolean) {
+    if (!selection) return;
+    setBusy(true);
+    try {
+      await markReading({ translation: translationCode, book: bookCode, chapter, from: selection.from, to: selection.to, read: asRead });
+      setStatus(asRead ? `${reference} gemarkeerd als gelezen.` : `${reference} weer op ongelezen gezet.`);
+      router.refresh();
+    } catch {
+      setStatus("Je leesvoortgang is niet bewaard. Probeer het opnieuw.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function toggle(n: number) {
     setSelection((s) => nextSelection(s, n));
@@ -139,7 +159,7 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
           <span
             key={v.verse}
             id={`v${v.verse}`}
-            className={["verse", isSelected(v.verse) && "selected", target && v.verse >= target.from && v.verse <= target.to && "target", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
+            className={["verse", isSelected(v.verse) && "selected", target && v.verse >= target.from && v.verse <= target.to && "target", isRead(v.verse) && "read", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
             data-verse={v.verse}
             title={h?.annotation || undefined}
           >
@@ -160,7 +180,8 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             <span className="verse-text" onClick={() => toggle(v.verse)}>
               {v.text}
             </span>
-            {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}{" "}
+            {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}
+            {isRead(v.verse) && <span className="visually-hidden"> (gelezen)</span>}{" "}
           </span>
           );
         })}
@@ -203,6 +224,9 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             </button>
             <button type="button" className="button ghost" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
               Markeren
+            </button>
+            <button type="button" className="button ghost" disabled={busy} onClick={() => void markRead(!selectionRead)}>
+              {selectionRead ? "Markeer als ongelezen" : "Markeer als gelezen"}
             </button>
             <button type="button" className="button ghost" onClick={() => setSelection(null)}>
               Wissen

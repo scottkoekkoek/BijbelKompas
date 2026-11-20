@@ -71,4 +71,6 @@ it("the reader only accepts a sane verse target and a note as the way back", () 
   expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21")).toBe(true);
   expect(isBackPath("//evil.test/notes/x")).toBe(false);
   expect(isBackPath("/settings")).toBe(false);
+  expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21/preek")).toBe(true);
+  expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21/versies")).toBe(false);
 });

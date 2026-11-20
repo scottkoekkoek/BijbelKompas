@@ -436,6 +436,11 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
             Terugzetten naar concept
           </button>
         )}
+        {status === "afgerond" && noteType === "preek" && !offline && (
+          <Link className="button" href={`/notes/${note.id}/preek`}>
+            Open preekweergave
+          </Link>
+        )}
       </div>
       <p id={`${ids}-save-hint`} className="hint doc-hint">
         Je tekst wordt vanzelf bewaard. Met “Opslaan als versie” leg je een vast punt vast waar je later naar terug kunt; met “Afronden” markeer je de notitie als klaar.

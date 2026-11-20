@@ -5,21 +5,21 @@ import { Fragment } from "react";
 import { passagesOf, type PMNode } from "@/lib/notes/document";
 
 /** Read-only rendering of a note document (versions). Builds React elements, never raw HTML. */
-export function DocumentView({ doc }: { doc: { content?: unknown[] } }) {
+export function DocumentView({ doc, back, className = "note-body readonly" }: { doc: { content?: unknown[] }; back?: string; className?: string }) {
   return (
-    <div className="note-body readonly">
+    <div className={className}>
       {((doc.content ?? []) as PMNode[]).map((n, i) => {
         const passages = passagesOf(n);
-        if (passages.length === 0) return render(n, i);
+        if (passages.length === 0) return render(n, i, back);
         return (
           <Fragment key={i}>
-            {render(n, i)}
+            {render(n, i, back)}
             <p className="block-passages">
               Gekoppeld aan:{" "}
               {passages.map((p, j) => (
                 <Fragment key={j}>
                   {j > 0 && "; "}
-                  <Link href={passagePath(p)}>{p.label}</Link>
+                  <Link href={passagePath(p, back)}>{p.label}</Link>
                 </Fragment>
               ))}
             </p>
@@ -45,7 +45,7 @@ function children(node: PMNode) {
   return (node.content ?? []).map((c, i) => render(c, i));
 }
 
-function render(node: PMNode, key: number): ReactNode {
+function render(node: PMNode, key: number, back?: string): ReactNode {
   switch (node.type) {
     case "text":
       return marks(node, key);
@@ -72,7 +72,7 @@ function render(node: PMNode, key: number): ReactNode {
           <span className="ref-label">{a.label}</span>
           <span className="ref-translation">{a.translation}</span>
           <span className="ref-actions">
-            <Link href={passagePath(a)} aria-label={`${a.label} lezen`}>Lees</Link>
+            <Link href={passagePath(a, back)} aria-label={`${a.label} lezen`}>Lees</Link>
           </span>
         </div>
       );
