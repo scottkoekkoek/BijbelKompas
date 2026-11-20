@@ -1,4 +1,4 @@
-import { NOTE_TYPE_LABELS, NoteStatus, NoteType } from "@bk/schemas";
+import { NOTE_TYPE_LABELS, NoteStatus, NoteType, QUESTION_STATUS_LABELS } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AskNotes } from "@/components/ai/AskNotes";
@@ -7,6 +7,7 @@ import { configuredProvider } from "@/lib/ai/provider";
 import { passagePath, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { referenceInSearch } from "@/lib/notes/reference";
+import { passageStudy } from "@/lib/reader/study";
 import { getSermonSuggestions, searchBible, searchNotes, type SearchFilters } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
@@ -63,15 +64,9 @@ export default async function SearchPage({ searchParams }: Props) {
           const chapterData = await getChapter(supabase, translation, book, r.startChapter);
           const to = r.endChapter === r.startChapter ? r.endVerse : 999;
           const verses = chapterData.verses.filter((v) => v.verse >= r.startVerse && v.verse <= to);
-          const { data: linked } = await supabase.rpc("passage_notes", {
-            p_translation: translation.code,
-            p_book: book.code,
-            p_chapter: r.startChapter,
-            p_start_verse: r.startVerse,
-            p_end_verse: to,
-          });
-          const notesHere = [...new Map(((linked ?? []) as { note_id: string; title: string }[]).map((n) => [n.note_id, n])).values()];
-          return { ref: r, verses: verses.slice(0, 8), more: verses.length > 8, exists: verses.length > 0 || chapterData.verses.length === 0, notesHere };
+          // feature 5: own notes and questions linked to (part of) this passage, each once
+          const study = await passageStudy(supabase, { translation: translation.code, book: book.code, chapter: r.startChapter, from: r.startVerse, to });
+          return { ref: r, verses: verses.slice(0, 8), more: verses.length > 8, exists: verses.length > 0 || chapterData.verses.length === 0, study };
         })()
       : null;
 
@@ -188,20 +183,49 @@ export default async function SearchPage({ searchParams }: Props) {
               Lees in de Bijbel
             </Link>
           </p>
-          {passage.notesHere.length > 0 && (
-            <>
-              <h3>Notities bij deze verzen</h3>
-              <ul className="chip-list">
-                {passage.notesHere.slice(0, 6).map((n) => (
-                  <li key={n.note_id}>
-                    <Link className="link-chip" href={`/notes/${n.note_id}`}>
-                      <span className="link-chip-title">{n.title || "Naamloze notitie"}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <div className="study">
+            <h3>Jouw notities en vragen bij {passage.ref.label}</h3>
+            {passage.study.notes.length === 0 && passage.study.questions.length === 0 ? (
+              <p className="study-empty">Je hebt nog geen notities of vragen aan dit gedeelte gekoppeld.</p>
+            ) : (
+              <>
+                {passage.study.notes.length > 0 && (
+                  <section className="study-group" aria-labelledby="passage-notes">
+                    <h4 id="passage-notes">Notities ({passage.study.notes.length})</h4>
+                    <ul className="study-list">
+                      {passage.study.notes.map((n) => (
+                        <li key={n.id}>
+                          <Link href={`/notes/${n.id}${n.blockId ? `#blok-${n.blockId}` : ""}`}>
+                            <span className="study-title">{n.title || "Naamloze notitie"}</span>
+                            <span className="study-meta">
+                              {NOTE_TYPE_LABELS[n.noteType]} · {n.references.join(", ")}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {passage.study.questions.length > 0 && (
+                  <section className="study-group" aria-labelledby="passage-questions">
+                    <h4 id="passage-questions">Onderzoeksvragen ({passage.study.questions.length})</h4>
+                    <ul className="study-list">
+                      {passage.study.questions.map((q) => (
+                        <li key={q.id}>
+                          <Link href={`/questions/${q.id}`}>
+                            <span className="study-title">{q.title}</span>
+                            <span className="study-meta">
+                              {QUESTION_STATUS_LABELS[q.status]} · {q.label}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </>
+            )}
+          </div>
         </section>
       )}
 

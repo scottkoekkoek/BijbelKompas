@@ -3,6 +3,11 @@ import type { ChapterHighlight, ChapterVerse, HighlightColor } from "@bk/schemas
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { QuickNoteForm } from "@/components/study/QuickNoteForm";
+import { QuickQuestionForm } from "@/components/study/QuickQuestionForm";
+import { StudyPanel } from "@/components/study/StudyPanel";
+import { Sheet } from "@/components/ui/Sheet";
+import type { QuickPassage } from "@/lib/notes/quick";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { HighlightEditor } from "./HighlightEditor";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
@@ -31,6 +36,8 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [linked, setLinked] = useState<LinkedNote[] | null>(null);
+  // features 1-3: one panel at a time on top of the reader; the selection stays as it was
+  const [panel, setPanel] = useState<null | "studie" | "aantekening" | "vraag">(null);
 
   // BK-031: the notes linked to the selected verses (only asked when a selected verse has a note).
   const hasNoted = !!selection && noted.some((n) => n >= selection.from && n <= selection.to);
@@ -67,6 +74,9 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
   }, [translationCode, bookCode, chapter]);
 
   const reference = formatReference(bookName, chapter, selection, translationCode);
+  const passage: QuickPassage | null = selection
+    ? { translation: translationCode, book: bookCode, startChapter: chapter, startVerse: selection.from, endChapter: chapter, endVerse: selection.to, label: formatReference(bookName, chapter, selection) }
+    : null;
   const isSelected = (n: number) => !!selection && n >= selection.from && n <= selection.to;
 
   function toggle(n: number) {
@@ -159,12 +169,15 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
       {selection && (
         <div className="selection-bar" role="region" aria-label="Geselecteerde verzen">
           <strong className="selection-ref">{reference}</strong>
-          <div className="selection-actions">
-            <button type="button" className="button" onClick={() => copy("reference")}>
-              Kopieer verwijzing
+          <div className="selection-actions study-actions">
+            <button type="button" className="button" onClick={() => setPanel("studie")}>
+              Mijn studie
             </button>
-            <button type="button" className="button secondary" onClick={() => copy("text")}>
-              Kopieer tekst
+            <button type="button" className="button secondary" onClick={() => setPanel("aantekening")}>
+              Snelle aantekening
+            </button>
+            <button type="button" className="button secondary" onClick={() => setPanel("vraag")}>
+              Stel een vraag
             </button>
             <NewNoteButton
               label="In notitie zetten"
@@ -180,10 +193,18 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
                 },
               }}
             />
-            <button type="button" className="button secondary" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
+          </div>
+          <div className="selection-actions tool-actions">
+            <button type="button" className="button ghost" onClick={() => copy("reference")}>
+              Kopieer verwijzing
+            </button>
+            <button type="button" className="button ghost" onClick={() => copy("text")}>
+              Kopieer tekst
+            </button>
+            <button type="button" className="button ghost" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
               Markeren
             </button>
-            <button type="button" className="button secondary" onClick={() => setSelection(null)}>
+            <button type="button" className="button ghost" onClick={() => setSelection(null)}>
               Wissen
             </button>
           </div>
@@ -203,6 +224,23 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             </section>
           )}
         </div>
+      )}
+      {selection && (
+        <>
+          <Sheet open={panel === "studie"} onClose={() => setPanel(null)} title={`Mijn studie bij ${passage!.label}`}>
+            <StudyPanel
+              query={{ translation: translationCode, book: bookCode, chapter, from: selection.from, to: selection.to }}
+              onQuickNote={() => setPanel("aantekening")}
+              onAsk={() => setPanel("vraag")}
+            />
+          </Sheet>
+          <Sheet open={panel === "aantekening"} onClose={() => setPanel(null)} title="Snelle aantekening">
+            <QuickNoteForm passage={passage} onClose={() => setPanel(null)} />
+          </Sheet>
+          <Sheet open={panel === "vraag"} onClose={() => setPanel(null)} title="Stel een vraag">
+            <QuickQuestionForm passage={passage!} onClose={() => setPanel(null)} onSaved={() => router.refresh()} />
+          </Sheet>
+        </>
       )}
       <p className="visually-hidden" role="status" aria-live="polite">
         {status}

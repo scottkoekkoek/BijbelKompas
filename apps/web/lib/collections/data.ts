@@ -189,7 +189,10 @@ export async function getQuestion(db: Db, id: string): Promise<Question | null> 
 export async function createQuestion(db: Db, q: QuestionInput): Promise<Question> {
   const { data, error } = await db.from("questions").insert({ title: q.title, description: q.description }).select(QUESTION_COLUMNS).single();
   if (error) throw error;
-  return toQuestion(data as QuestionRow);
+  const question = toQuestion(data as QuestionRow);
+  // feature 3: a question asked from a verse selection is linked to exactly that passage
+  if (q.passage && q.label) await addQuestionPassage(db, question.id, { ...q.passage, label: q.label });
+  return question;
 }
 
 export async function updateQuestion(db: Db, id: string, q: QuestionUpdate): Promise<Question | null> {
