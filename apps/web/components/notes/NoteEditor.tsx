@@ -11,13 +11,13 @@ import {
 } from "@bk/schemas";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useSyncState } from "@/components/sync/SyncStatus";
 import { getStored, listOutbox, saveLocal } from "@/lib/offline/db";
 import { editLockName, syncEngine } from "@/lib/offline/engine";
 import type { LocalContent } from "@/lib/offline/types";
-import { readerPath } from "@/lib/bible";
+import { passagePath } from "@/lib/bible";
 import { LINKABLE_TYPES, MAX_PASSAGES_PER_BLOCK, samePassage, type LinkedPassage } from "@/lib/notes/document";
 import { parseReference, type BookInfo } from "@/lib/notes/reference";
 import { noteExtensions } from "./extensions";
@@ -391,8 +391,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
           </select>
         </div>
         <div className="field">
-          <label htmlFor={`${ids}-date`}>Datum</label>
-          <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+          <label htmlFor={`${ids}-date`}>Datum van preek of gebeurtenis</label>
+          <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} aria-describedby={`${ids}-date-hint`} />
+          <p id={`${ids}-date-hint`} className="hint">Optioneel. Hiermee komt de notitie op de juiste plek in de tijdlijn.</p>
         </div>
       </fieldset>
 
@@ -423,7 +424,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         )}
       </div>
       <div className="note-actions">
-        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })}>
+        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })} aria-describedby={`${ids}-save-hint`}>
           Opslaan als versie
         </button>
         {status === "concept" ? (
@@ -436,6 +437,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
           </button>
         )}
       </div>
+      <p id={`${ids}-save-hint`} className="hint doc-hint">
+        Je tekst wordt vanzelf bewaard. Met “Opslaan als versie” leg je een vast punt vast waar je later naar terug kunt; met “Afronden” markeer je de notitie als klaar.
+      </p>
       </div>
 
       {saveState === "conflict" && (
@@ -491,6 +495,7 @@ function SermonField(props: { id: string; label: string; value: string | null; o
 }
 
 function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books: BookInfo[]; defaultTranslation: string }) {
+  const pathname = usePathname();
   const id = useId();
   const [ref, setRef] = useState("");
   const [error, setError] = useState("");
@@ -621,7 +626,7 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
           <ul>
             {s.passages.map((p) => (
               <li key={`${p.book}${p.startChapter}:${p.startVerse}-${p.endChapter}:${p.endVerse}`} className="passage-chip">
-                <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                <Link href={passagePath(p, pathname)}>{p.label}</Link>
                 <button
                   type="button"
                   aria-label={`Koppeling ${p.label} verwijderen`}

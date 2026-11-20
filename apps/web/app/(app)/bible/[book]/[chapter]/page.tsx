@@ -5,12 +5,12 @@ import { CompareView } from "@/components/bible/CompareView";
 import { HighlightList } from "@/components/bible/HighlightList";
 import { VerseList } from "@/components/bible/VerseList";
 import { ChevronLeftIcon, ChevronRightIcon, CompareIcon, ExternalIcon } from "@/components/icons";
-import { neighbours, readerPath } from "@/lib/bible";
+import { isBackPath, neighbours, parseVerseTarget, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { chapterHighlights, compareChapter } from "@/lib/reader/data";
 import { createClient } from "@/lib/supabase/server";
 
-type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string }> };
+type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string; vers?: string; terug?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { book, chapter } = await params;
@@ -21,7 +21,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ReaderPage({ params, searchParams }: Props) {
   const { book: rawBook, chapter: rawChapter } = await params;
-  const { v, naast } = await searchParams;
+  const { v, naast, vers, terug } = await searchParams;
+  // audit BK-01: the exact verse a link pointed at, and the note to return to
+  const target = parseVerseTarget(vers);
+  const back = isBackPath(terug) ? terug : null;
   const chapter = Number(rawChapter);
 
   const supabase = await createClient();
@@ -46,6 +49,9 @@ export default async function ReaderPage({ params, searchParams }: Props) {
     : { data: null };
   const questions = (chapterQuestions ?? []) as { question_id: string; title: string; label: string }[];
   const noteRows = (chapterNotes ?? []) as { verse_number: number; note_id: string; title: string }[];
+  const backNote = back ? (await supabase.from("notes").select("title").eq("id", back.slice("/notes/".length)).maybeSingle()).data : null;
+  const lastVerse = data?.verses.at(-1)?.verse ?? 0;
+  const targetMissing = !!target && !!data && data.verses.length > 0 && target.from > lastVerse;
   const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
   const references = translations.filter((t) => !t.hasText && t.externalUrl);
   const readable = translations.filter((t) => t.hasText);
@@ -60,6 +66,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
     <article className="reader">
       <p className="crumb">
         <Link href="/bible">Alle boeken</Link> · <Link href={`/bible/${book.code}${translation ? `?v=${translation.code}` : ""}`}>{book.name}</Link>
+        {back && backNote && (
+          <Link className="reader-back" href={back}>
+            <ChevronLeftIcon /> Terug naar {backNote.title || "je notitie"}
+          </Link>
+        )}
       </p>
       <header className="reader-head">
         <h1>
@@ -135,6 +146,12 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         )}
       </div>
 
+      {targetMissing && (
+        <p className="alert info target-missing" role="status">
+          {book.name} {chapter} heeft in de {data?.translation.name} {lastVerse} verzen. Vers {target?.from} bestaat hier niet; het hele hoofdstuk wordt getoond.
+        </p>
+      )}
+
       {!data ? (
         <p className="placeholder">Er is nog geen vertaling met tekst beschikbaar.</p>
       ) : data.verses.length === 0 ? (
@@ -158,6 +175,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           translationCode={data.translation.code}
           noted={[...new Set(noteRows.map((r) => r.verse_number))]}
           highlights={highlights}
+          target={targetMissing ? null : target}
         />
       )}
 

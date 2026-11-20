@@ -19,10 +19,12 @@ type Props = {
   noted?: number[];
   /** BK-013: the owner's highlights, in this translation's verse numbers */
   highlights?: ChapterHighlight[];
+  /** audit BK-01: the verse or range a link pointed at; marked and scrolled into view */
+  target?: { from: number; to: number } | null;
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [] }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
   const [marking, setMarking] = useState(false);
@@ -45,6 +47,15 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
       setLinked(null);
     };
   }, [selection, hasNoted, translationCode, bookCode, chapter]);
+
+  // audit BK-01: land on the exact verse, also after a reload or a client-side navigation
+  useEffect(() => {
+    if (!target) return;
+    const el = document.getElementById(`v${target.from}`);
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [target]);
 
   // Remember where the owner is reading. Failing to save is harmless, so it stays silent.
   useEffect(() => {
@@ -118,7 +129,7 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
           <span
             key={v.verse}
             id={`v${v.verse}`}
-            className={["verse", isSelected(v.verse) && "selected", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
+            className={["verse", isSelected(v.verse) && "selected", target && v.verse >= target.from && v.verse <= target.to && "target", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
             data-verse={v.verse}
             title={h?.annotation || undefined}
           >

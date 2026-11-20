@@ -27,11 +27,12 @@ const LIMIT = 200; // listNotes returns at most this many
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const [position, notes, questions] = await Promise.all([getReadingPosition(supabase), listNotes(supabase), listQuestions(supabase)]);
+  const [position, notes, questions] = await Promise.all([getReadingPosition(supabase), listNotes(supabase), listQuestions(supabase, "lopend")]);
   const recent = notes.slice(0, 5);
   const now = new Date();
   const concepts = notes.filter((n) => n.status === "concept").length;
-  const openQuestions = questions.filter((q) => q.status !== "beantwoord").length;
+  // the same count as the "Lopend" tab it links to: open and in research
+  const openQuestions = questions.length;
   const count = (n: number) => (n >= LIMIT ? `${LIMIT}+` : String(n));
 
   return (
@@ -97,7 +98,7 @@ export default async function DashboardPage() {
               <li>
                 <Link className="stat" href="/questions">
                   <span className="stat-value">{openQuestions}</span>
-                  <span className="stat-label">{openQuestions === 1 ? "open vraag" : "open vragen"}</span>
+                  <span className="stat-label">{openQuestions === 1 ? "lopende vraag" : "lopende vragen"}</span>
                 </Link>
               </li>
             </ul>

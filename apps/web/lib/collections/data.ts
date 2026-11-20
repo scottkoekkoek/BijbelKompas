@@ -171,9 +171,10 @@ const toQuestion = (r: QuestionRow): Question => ({
   resolvedAt: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
 });
 
-export async function listQuestions(db: Db, status?: QuestionStatus): Promise<Question[]> {
+/** No status: everything except archived (the API). "lopend": open and in research (audit BK-04). */
+export async function listQuestions(db: Db, status?: QuestionStatus | "lopend"): Promise<Question[]> {
   let q = db.from("questions").select(QUESTION_COLUMNS).order("updated_at", { ascending: false }).limit(500);
-  q = status ? q.eq("status", status) : q.neq("status", "gearchiveerd");
+  q = status === "lopend" ? q.in("status", ["open", "in_onderzoek"]) : status ? q.eq("status", status) : q.neq("status", "gearchiveerd");
   const { data, error } = await q;
   if (error) throw error;
   return (data as QuestionRow[]).map(toQuestion);
