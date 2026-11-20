@@ -33,7 +33,8 @@ test("select a verse range and copy the reference", async ({ page, context, brow
   await expect(page.getByRole("button", { name: "Vers 2 selecteren" })).toHaveAttribute("aria-pressed", "true");
 
   await bar.getByRole("button", { name: "Kopieer verwijzing" }).click();
-  await expect(page.getByRole("status")).toHaveText("Verwijzing gekopieerd.");
+  // the reader page also has the reading-progress status (feature 6)
+  await expect(page.getByRole("status").filter({ hasText: "Verwijzing gekopieerd." })).toHaveCount(1);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Genesis 1:1-3 (TEST)");
 
   await bar.getByRole("button", { name: "Wissen" }).click();
