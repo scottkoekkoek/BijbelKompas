@@ -5,6 +5,7 @@ import { z } from "zod";
 import { NoteSuggestions } from "@/components/ai/NoteSuggestions";
 import { NoteCollections } from "@/components/collections/NoteCollections";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
+import { ClockIcon } from "@/components/icons";
 import { LocalNote } from "@/components/notes/LocalNote";
 import { configuredProvider } from "@/lib/ai/provider";
 import { getBooks, getTranslations, pickTranslation } from "@/lib/bible-data";
@@ -59,8 +60,9 @@ export default async function NotePage({ params }: Props) {
         defaultTranslation={translation?.code ?? "SV"}
         suggestions={suggestions}
       />
-      <div className="button-row note-footer">
-        <Link className="button secondary" href={`/notes/${note.id}/versies`}>
+      <div className="note-footer">
+        <Link className="button ghost small" href={`/notes/${note.id}/versies`}>
+          <ClockIcon size={16} />
           Versiegeschiedenis
         </Link>
         <ArchiveButton id={note.id} archived={note.archived} />

@@ -40,7 +40,6 @@ export default async function DashboardPage() {
         <div>
           <p className="dash-date">{dayFmt.format(now)}</p>
           <h1>{greeting(now)}</h1>
-          <p className="page-intro">Lees verder in de Bijbel of ga verder met je notities.</p>
         </div>
         <Link className="button" href="/notes/new">
           <NoteIcon size={18} />
@@ -50,65 +49,36 @@ export default async function DashboardPage() {
 
       <div className="dash-grid">
         <div className="dash-stack">
-          <section className="continue-card" aria-labelledby="dash-reading">
-            <p className="eyebrow">Bijbel lezen</p>
-            {position ? (
-              <>
-                <h2 id="dash-reading">
-                  {position.bookName} {position.chapter}
-                </h2>
-                <p>Ga verder waar je gebleven was.</p>
-                <Link className="button" href={readerPath(position.bookCode, position.chapter, position.translation)}>
-                  Verder lezen: {position.bookName} {position.chapter}
-                  <ChevronRightIcon />
-                </Link>
-              </>
-            ) : (
-              <>
-                <h2 id="dash-reading">Open de Bijbel</h2>
-                <p>Kies een boek en hoofdstuk om te beginnen.</p>
-                <Link className="button" href="/bible">
-                  Begin met lezen
-                  <ChevronRightIcon />
-                </Link>
-              </>
-            )}
-            <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
-            </svg>
-          </section>
+          {position ? (
+            <Link
+              className="continue-card"
+              href={readerPath(position.bookCode, position.chapter, position.translation)}
+              aria-label={`Verder lezen: ${position.bookName} ${position.chapter}`}
+            >
+              <span className="eyebrow">Bijbel lezen</span>
+              <span className="continue-title">
+                {position.bookName} {position.chapter}
+              </span>
+              <span className="continue-text">Ga verder waar je gebleven was.</span>
+              <span className="continue-cta" aria-hidden="true">
+                Verder lezen
+                <ChevronRightIcon />
+              </span>
+              <CardCompass />
+            </Link>
+          ) : (
+            <Link className="continue-card" href="/bible" aria-label="Begin met lezen in de Bijbel">
+              <span className="eyebrow">Bijbel lezen</span>
+              <span className="continue-title">Open de Bijbel</span>
+              <span className="continue-text">Kies een boek en hoofdstuk om te beginnen.</span>
+              <span className="continue-cta" aria-hidden="true">
+                Begin met lezen
+                <ChevronRightIcon />
+              </span>
+              <CardCompass />
+            </Link>
+          )}
 
-          <section className="panel" aria-labelledby="dash-recent">
-            <div className="panel-head">
-              <h2 id="dash-recent">Recente notities</h2>
-              <Link href="/notes">Alle notities</Link>
-            </div>
-            {recent.length === 0 ? (
-              <div className="empty-state">
-                <NoteIcon />
-                <p>Je hebt nog geen notities.</p>
-                <p className="hint">Begin met een nieuwe notitie, of selecteer verzen in de Bijbel en kies “In notitie zetten”.</p>
-              </div>
-            ) : (
-              <ul className="note-list recent-notes">
-                {recent.map((n) => (
-                  <li key={n.id}>
-                    <Link href={`/notes/${n.id}`}>
-                      <span className="note-list-title">{n.title || "Naamloze notitie"}</span>
-                      <span className="note-list-meta">
-                        {NOTE_TYPE_LABELS[n.noteType]} · <span className={`badge ${n.status}`}>{n.status === "afgerond" ? "Afgerond" : "Concept"}</span>
-                        {" · "}bijgewerkt {shortFmt.format(new Date(n.updatedAt))}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-
-        <div className="dash-stack">
           <section className="dash-section" aria-labelledby="dash-overview">
             <h2 id="dash-overview" className="visually-hidden">Overzicht</h2>
             <ul className="stat-grid">
@@ -133,6 +103,43 @@ export default async function DashboardPage() {
             </ul>
           </section>
 
+          <section className="panel" aria-labelledby="dash-recent">
+            <div className="panel-head">
+              <h2 id="dash-recent">Recente notities</h2>
+              <Link href="/notes">Alle notities</Link>
+            </div>
+            {recent.length === 0 ? (
+              <div className="empty-state">
+                <NoteIcon />
+                <p>Je hebt nog geen notities.</p>
+                <p className="hint">Begin met een nieuwe notitie, of selecteer verzen in de Bijbel en kies “In notitie zetten”.</p>
+              </div>
+            ) : (
+              <ul className="note-list recent-notes">
+                {recent.map((n) => (
+                  <li key={n.id}>
+                    <Link href={`/notes/${n.id}`} className="recent-row">
+                      <span className="recent-main">
+                        <span className="note-list-title">{n.title || "Naamloze notitie"}</span>
+                        <span className="note-list-meta">
+                          <span className={`status-dot ${n.status}`}>{n.status === "afgerond" ? "Afgerond" : "Concept"}</span>
+                          <span aria-hidden="true">·</span>
+                          {NOTE_TYPE_LABELS[n.noteType]}
+                        </span>
+                      </span>
+                      <span className="recent-date">
+                        <span className="visually-hidden">bijgewerkt </span>
+                        {shortFmt.format(new Date(n.updatedAt))}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <div className="dash-stack">
           <section className="dash-section" aria-labelledby="dash-quick">
             <h2 id="dash-quick" className="visually-hidden">Snel naar</h2>
             <ul className="quick-actions">
@@ -145,6 +152,15 @@ export default async function DashboardPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function CardCompass() {
+  return (
+    <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+    </svg>
   );
 }
 
