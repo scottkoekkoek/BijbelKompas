@@ -1,6 +1,7 @@
 import { NOTE_TYPE_LABELS } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { QuickNoteButton } from "@/components/study/QuickNoteButton";
 import { BookIcon, ChevronRightIcon, FolderIcon, NoteIcon, QuestionIcon, SearchIcon } from "@/components/icons";
 import { readerPath } from "@/lib/bible";
 import { getReadingPosition } from "@/lib/bible-data";
@@ -42,10 +43,13 @@ export default async function DashboardPage() {
           <p className="dash-date">{dayFmt.format(now)}</p>
           <h1>{greeting(now)}</h1>
         </div>
-        <Link className="button" href="/notes/new">
-          <NoteIcon size={18} />
-          Nieuwe notitie
-        </Link>
+        <div className="dash-hero-actions">
+          <QuickNoteButton />
+          <Link className="button" href="/notes/new">
+            <NoteIcon size={18} />
+            Nieuwe notitie
+          </Link>
+        </div>
       </header>
 
       <div className="dash-grid">

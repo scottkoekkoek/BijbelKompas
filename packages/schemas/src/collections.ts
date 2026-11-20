@@ -64,8 +64,12 @@ export const QuestionInput = z
   .object({
     title: z.string().trim().min(1, "Schrijf de vraag op").max(200),
     description: z.string().trim().max(5000).default(""),
+    /** start with a passage, e.g. from a verse selection in the reader */
+    passage: PassageRef.optional(),
+    label: z.string().trim().min(1).max(200).optional(),
   })
-  .strict();
+  .strict()
+  .refine((q) => !q.passage === !q.label, { message: "Een gedeelte heeft een naam nodig", path: ["label"] });
 export type QuestionInput = z.infer<typeof QuestionInput>;
 export const QuestionUpdate = z
   .object({
