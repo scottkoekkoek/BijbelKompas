@@ -1,0 +1,231 @@
+"use client";
+// Feature 4: the calm reading view of a finished sermon. Reads only: the font size is kept on this
+// device (localStorage) and the reading place in this tab (sessionStorage), never on the note.
+import Link from "next/link";
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { BookIcon, ChevronLeftIcon, ExternalIcon } from "@/components/icons";
+import { clampFontStep, DEFAULT_FONT_STEP, FONT_STEPS } from "@/lib/notes/sermon";
+
+export type SermonPassage = {
+  key: string;
+  label: string;
+  translation: string;
+  translationName: string;
+  href: string;
+  externalUrl: string | null;
+  attribution: string | null;
+  /** null: this translation is reference only (or unknown), so no text is shown */
+  verses: { chapter: number; verse: number; text: string }[] | null;
+  cut?: boolean;
+};
+
+const FONT_KEY = "bk-preek-lettergrootte";
+const scrollKey = (id: string) => `bk-preek-plek:${id}`;
+const passageKey = (id: string) => `bk-preek-gedeelte:${id}`;
+const openKey = (id: string) => `bk-preek-paneel:${id}`;
+
+function read(store: () => Storage, key: string): string | null {
+  try {
+    return store().getItem(key);
+  } catch {
+    return null;
+  }
+}
+function write(store: () => Storage, key: string, value: string) {
+  try {
+    store().setItem(key, value);
+  } catch {
+    /* private mode: the view works without remembering */
+  }
+}
+
+export function SermonView({
+  noteId,
+  title,
+  meta,
+  passages,
+  children,
+}: {
+  noteId: string;
+  title: string;
+  meta: string[];
+  passages: SermonPassage[];
+  children: ReactNode;
+}) {
+  const ids = useId();
+  const [step, setStep] = useState(DEFAULT_FONT_STEP);
+  const [active, setActive] = useState(passages[0]?.key ?? "");
+  const [open, setOpen] = useState(false);
+  const restored = useRef(false);
+  const leaving = useRef(false);
+
+  // the font size of this device, and the passage chosen earlier in this tab
+  // (read after mounting, so the server render and the first client render agree)
+  useEffect(() => {
+    const f = read(() => localStorage, FONT_KEY);
+    const p = read(() => sessionStorage, passageKey(noteId));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring device settings on mount
+    if (f !== null) setStep(clampFontStep(Number(f)));
+    if (p && passages.some((x) => x.key === p)) setActive(p);
+    if (read(() => sessionStorage, openKey(noteId)) === "1") setOpen(true);
+  }, [noteId, passages]);
+
+  // back from the Bible reader: the same place in the sermon
+  useEffect(() => {
+    const saved = Number(read(() => sessionStorage, scrollKey(noteId)));
+    // the router scrolls a new page to the top after it mounts (and later again when content
+    // streams in); restore only while the page still sits at the top, so the reader is never pulled away
+    const restore = () => {
+      if (saved > 0 && window.scrollY < 5) window.scrollTo({ top: saved, behavior: "instant" });
+    };
+    const frame = requestAnimationFrame(restore);
+    const timers = [120, 350].map((ms) => window.setTimeout(restore, ms));
+    const ready = window.setTimeout(() => (restored.current = true), 400);
+    let pending = 0;
+    const onScroll = () => {
+      if (!restored.current || leaving.current || pending) return;
+      pending = requestAnimationFrame(() => {
+        pending = 0;
+        if (!leaving.current) write(() => sessionStorage, scrollKey(noteId), String(Math.round(window.scrollY)));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(pending);
+      timers.forEach((t) => window.clearTimeout(t));
+      window.clearTimeout(ready);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [noteId]);
+
+  // following any link out of the view: keep this place, and ignore the scroll the navigation causes
+  const onLinkClick = (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest("a[href]")) return;
+    write(() => sessionStorage, scrollKey(noteId), String(Math.round(window.scrollY)));
+    leaving.current = true;
+  };
+
+  const changeFont = (delta: number) => {
+    setStep((s) => {
+      const next = clampFontStep(s + delta);
+      write(() => localStorage, FONT_KEY, String(next));
+      return next;
+    });
+  };
+  const choose = (key: string) => {
+    setActive(key);
+    write(() => sessionStorage, passageKey(noteId), key);
+  };
+
+  const passage = passages.find((p) => p.key === active) ?? passages[0];
+  const scale = FONT_STEPS[step]!;
+  const panelId = `${ids}-passage`;
+
+  return (
+    <article className={passage ? "sermon-view has-passage" : "sermon-view"} style={{ ["--sermon-scale" as string]: String(scale) }} onClickCapture={onLinkClick}>
+      <p className="crumb">
+        <Link className="sermon-back" href={`/notes/${noteId}`}>
+          <ChevronLeftIcon /> Terug naar notitie
+        </Link>
+      </p>
+
+      <header className="sermon-head">
+        <p className="eyebrow">Preekweergave</p>
+        <h1>{title}</h1>
+        {meta.length > 0 && <p className="sermon-meta">{meta.join(" · ")}</p>}
+      </header>
+
+      <div className="sermon-tools">
+        <div className="sermon-font" role="group" aria-label="Lettergrootte">
+          <button type="button" className="button secondary small" onClick={() => changeFont(-1)} disabled={step === 0}>
+            A−<span className="visually-hidden"> kleiner</span>
+          </button>
+          <span className="sermon-font-value" aria-live="polite">
+            {Math.round(scale * 100)}%
+          </span>
+          <button type="button" className="button secondary small" onClick={() => changeFont(1)} disabled={step === FONT_STEPS.length - 1}>
+            A+<span className="visually-hidden"> groter</span>
+          </button>
+        </div>
+        {passage && (
+          <button
+            type="button"
+            className="button secondary small sermon-passage-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => {
+              write(() => sessionStorage, openKey(noteId), open ? "0" : "1");
+              setOpen(!open);
+            }}
+          >
+            <BookIcon size={18} />
+            Bijbelgedeelte
+          </button>
+        )}
+      </div>
+
+      <div className="sermon-layout">
+        <div className="sermon-main">{children}</div>
+
+        {passage && (
+          <aside id={panelId} className="sermon-passage" data-open={open ? "true" : "false"} aria-labelledby={`${panelId}-title`}>
+            <h2 id={`${panelId}-title`} className="sermon-passage-heading">
+              Bijbelgedeelte
+            </h2>
+            {passages.length > 1 && (
+              <div className="field">
+                <label htmlFor={`${panelId}-choose`}>Kies gedeelte</label>
+                <select id={`${panelId}-choose`} value={passage.key} onChange={(e) => choose(e.target.value)}>
+                  {passages.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label} ({p.translation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <p className="sermon-passage-label">
+              {passage.label} <span className="ref-translation">{passage.translation}</span>
+            </p>
+
+            {passage.verses === null ? (
+              <p className="hint">
+                Van de {passage.translationName} tonen we alleen de verwijzing.
+                {passage.externalUrl ? " Je kunt de tekst lezen op de website van de uitgever." : ""}
+              </p>
+            ) : passage.verses.length === 0 ? (
+              <p className="hint">Van dit gedeelte is in de {passage.translationName} nog geen tekst ingeladen.</p>
+            ) : (
+              <div className="sermon-verses">
+                {passage.verses.map((v, i) => (
+                  <p key={`${v.chapter}.${v.verse}`}>
+                    <sup className="sermon-vnum">
+                      {i === 0 || v.verse === 1 ? `${v.chapter}:${v.verse}` : v.verse}
+                    </sup>{" "}
+                    {v.text}
+                  </p>
+                ))}
+                {passage.cut && <p className="hint">Het gedeelte loopt verder; open de Bijbel voor de rest.</p>}
+              </div>
+            )}
+
+            <div className="sermon-passage-actions">
+              <Link className="button small" href={passage.href}>
+                Open in Bijbel
+              </Link>
+              {passage.externalUrl && (
+                <a className="button ghost small" href={passage.externalUrl} target="_blank" rel="noopener noreferrer">
+                  {passage.translation} op externe website
+                  <ExternalIcon />
+                  <span className="visually-hidden"> (opent externe website)</span>
+                </a>
+              )}
+            </div>
+            {passage.attribution && <p className="attribution">{passage.attribution}</p>}
+          </aside>
+        )}
+      </div>
+    </article>
+  );
+}

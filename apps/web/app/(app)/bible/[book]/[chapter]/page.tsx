@@ -7,7 +7,9 @@ import { VerseList } from "@/components/bible/VerseList";
 import { ChevronLeftIcon, ChevronRightIcon, CompareIcon, ExternalIcon } from "@/components/icons";
 import { isBackPath, neighbours, parseVerseTarget, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
+import { ChapterProgress } from "@/components/bible/ChapterProgress";
 import { chapterHighlights, compareChapter } from "@/lib/reader/data";
+import { bookChapters, nextUnread, readVerses } from "@/lib/reader/progress";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string; vers?: string; terug?: string }> };
@@ -49,7 +51,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
     : { data: null };
   const questions = (chapterQuestions ?? []) as { question_id: string; title: string; label: string }[];
   const noteRows = (chapterNotes ?? []) as { verse_number: number; note_id: string; title: string }[];
-  const backNote = back ? (await supabase.from("notes").select("title").eq("id", back.slice("/notes/".length)).maybeSingle()).data : null;
+  const backNote = back ? (await supabase.from("notes").select("title").eq("id", back.split("/")[2]!).maybeSingle()).data : null;
   const lastVerse = data?.verses.at(-1)?.verse ?? 0;
   const targetMissing = !!target && !!data && data.verses.length > 0 && target.from > lastVerse;
   const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
@@ -60,6 +62,12 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const compared = data && other && data.verses.length > 0 ? await compareChapter(supabase, data.translation.code, other.code, book.code, chapter) : null;
   // BK-013: the owner's highlights, in the numbering of this translation
   const highlights = data ? await chapterHighlights(supabase, data.translation.code, book.code, chapter) : [];
+  // feature 6: what the owner marked as read; reading this page changes nothing
+  const hasText = !!data && data.verses.length > 0;
+  const [readList, chapters, firstUnread] = hasText
+    ? await Promise.all([readVerses(supabase, data.translation.code, book.code, chapter), bookChapters(supabase, book.code), nextUnread(supabase, book.code, chapter)])
+    : [[], [], null];
+  const progress = chapters.find((c) => c.chapter === chapter);
   const comparePath = (code: string) => `${readerPath(book.code, chapter, translation?.code)}&naast=${code}`;
 
   return (
@@ -68,7 +76,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         <Link href="/bible">Alle boeken</Link> · <Link href={`/bible/${book.code}${translation ? `?v=${translation.code}` : ""}`}>{book.name}</Link>
         {back && backNote && (
           <Link className="reader-back" href={back}>
-            <ChevronLeftIcon /> Terug naar {backNote.title || "je notitie"}
+            <ChevronLeftIcon /> {back.endsWith("/preek") ? "Terug naar de preek" : `Terug naar ${backNote.title || "je notitie"}`}
           </Link>
         )}
       </p>
@@ -176,6 +184,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           noted={[...new Set(noteRows.map((r) => r.verse_number))]}
           highlights={highlights}
           target={targetMissing ? null : target}
+          read={readList}
         />
       )}
 
@@ -221,6 +230,19 @@ export default async function ReaderPage({ params, searchParams }: Props) {
             </section>
           )}
         </div>
+      )}
+
+      {hasText && progress && (
+        <ChapterProgress
+          translation={data.translation.code}
+          book={book.code}
+          bookName={book.name}
+          chapter={chapter}
+          status={progress.status}
+          read={progress.read}
+          total={progress.total}
+          nextVerse={firstUnread?.verse ?? null}
+        />
       )}
 
       <nav className="chapter-nav" aria-label="Hoofdstukken">

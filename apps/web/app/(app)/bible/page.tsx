@@ -3,13 +3,14 @@ import Link from "next/link";
 import { BookPicker } from "@/components/bible/BookPicker";
 import { readerPath } from "@/lib/bible";
 import { getBooks, getReadingPosition } from "@/lib/bible-data";
+import { booksProgress } from "@/lib/reader/progress";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Bijbel" };
 
 export default async function BiblePage() {
   const supabase = await createClient();
-  const [books, position] = await Promise.all([getBooks(supabase), getReadingPosition(supabase)]);
+  const [books, position, progress] = await Promise.all([getBooks(supabase), getReadingPosition(supabase), booksProgress(supabase)]);
 
   return (
     <>
@@ -21,7 +22,7 @@ export default async function BiblePage() {
           </Link>
         </p>
       )}
-      <BookPicker books={books} />
+      <BookPicker books={books} progress={progress} />
     </>
   );
 }
