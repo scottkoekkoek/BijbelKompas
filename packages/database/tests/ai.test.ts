@@ -219,3 +219,44 @@ describe("questions to your notes (BK-042, BK-043, AT-11)", () => {
     });
   });
 });
+
+describe("AI-uitleg bij verzen (ADR-017)", () => {
+  const explain = (q: pg.Client, job: string, translation: string, keys: string[], cross: unknown = []) =>
+    q.query("select * from public.ai_add_explanation($1, $2, $3, 'Genesis 1:1-2', 'Uitleg', $4)", [job, translation, keys, JSON.stringify(cross)]);
+
+  it("HSV and NBV21 can never be sent to AI; the test text can", async () => {
+    const { rows } = await db.query("select code, ai_processing_allowed from public.bible_translations where code in ('HSV', 'NBV21', 'TEST', 'TEST2') order by code");
+    expect(rows).toEqual([
+      { code: "HSV", ai_processing_allowed: false },
+      { code: "NBV21", ai_processing_allowed: false },
+      { code: "TEST", ai_processing_allowed: true },
+      { code: "TEST2", ai_processing_allowed: false },
+    ]);
+    await db.query("begin");
+    try {
+      expect(await fails(db, "update public.bible_translations set ai_processing_allowed = true where code = 'HSV'")).toBe("23514");
+    } finally {
+      await db.query("rollback");
+    }
+  });
+
+  it("stores an explanation only for an open uitleg job, existing verses and an allowed translation", async () => {
+    await as(db, { kind: "user", id: alice }, async (q) => {
+      await aiOn(q);
+      const job = (await q.query("select * from public.ai_reserve('uitleg', 'u1', 0.01, 'fictief', 'test-1')")).rows[0];
+      expect(await fails(q, "select public.ai_add_explanation($1, 'TEST2', '{GEN.1.1}', 'l', 'u', '[]')", [job.id])).toBe("42501");
+      expect(await fails(q, "select public.ai_add_explanation($1, 'TEST', '{GEN.1.1,GEN.9.9}', 'l', 'u', '[]')", [job.id])).toBe("22023");
+      const e = (await explain(q, job.id, "TEST", ["GEN.1.1", "GEN.1.2"], [{ reference: "Johannes 1:1", reason: "Ook 'in het begin'." }, "los", { reason: "zonder verwijzing" }])).rows[0];
+      expect(e).toMatchObject({ translation_code: "TEST", segment_keys: ["GEN.1.1", "GEN.1.2"], model_version: "fictief/test-1" });
+      expect(e.cross_references).toEqual([{ reference: "Johannes 1:1", reason: "Ook 'in het begin'." }]);
+      await q.query("select public.ai_finish($1, true, 0.001)", [job.id]);
+      expect(await fails(q, "select public.ai_add_explanation($1, 'TEST', '{GEN.1.1}', 'l', 'u', '[]')", [job.id])).toBe("42501");
+      const vraag = (await q.query("select * from public.ai_reserve('vraag', 'u2', 0.01, 'fictief', 'test-1')")).rows[0];
+      expect(await fails(q, "select public.ai_add_explanation($1, 'TEST', '{GEN.1.1}', 'l', 'u', '[]')", [vraag.id])).toBe("42501");
+      expect(await fails(q, "insert into public.ai_explanations (owner_id, job_id, translation_code, segment_keys, passage_label, explanation, model_version) values (auth.uid(), $1, 'TEST', '{GEN.1.1}', 'l', 'u', 'm')", [vraag.id])).toBe("42501");
+    });
+    await as(db, { kind: "user", id: bob }, async (q) => {
+      expect((await q.query("select * from public.ai_explanations")).rows).toEqual([]);
+    });
+  });
+});

@@ -1,7 +1,7 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { createHash } from "node:crypto";
-import type { AiProvider, Fragment } from "./provider";
+import type { AiProvider, ExplainInput, Fragment } from "./provider";
 import { checkedSources } from "./sources";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -91,7 +91,7 @@ type Reservation = { ok: true; job: { id: string; status: "gereserveerd" | "klaa
  */
 async function reserve(
   db: Db,
-  a: { jobType: "analyse" | "vraag"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
+  a: { jobType: "analyse" | "vraag" | "uitleg"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
 ): Promise<Reservation> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const { data, error } = await db
@@ -291,4 +291,109 @@ export async function recentAnswers(db: Db, limit = 5): Promise<AiAnswer[]> {
   const { data, error } = await db.from("ai_answers").select("*").order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return Promise.all(((data ?? []) as AnswerRow[]).map((a) => toAnswer(db, a)));
+}
+
+export const MAX_EXPLAIN_VERSES = 30;
+export type AiExplanation = {
+  id: string;
+  translation: string;
+  label: string;
+  text: string;
+  crossReferences: { reference: string; reason: string }[];
+  model: string;
+  createdAt: string;
+};
+type ExplanationRow = {
+  id: string;
+  translation_code: string;
+  passage_label: string;
+  explanation: string;
+  cross_references: { reference: string; reason: string }[];
+  model_version: string;
+  created_at: string;
+};
+const toExplanation = (e: ExplanationRow): AiExplanation => ({
+  id: e.id,
+  translation: e.translation_code,
+  label: e.passage_label,
+  text: e.explanation,
+  crossReferences: e.cross_references,
+  model: e.model_version,
+  createdAt: e.created_at,
+});
+
+export type ExplainResult =
+  | { ok: true; explanation: AiExplanation; reused: boolean }
+  | { ok: false; kind: "ai_off" | "not_allowed" | "not_found" | "too_long" | "budget" | "failed" };
+
+/**
+ * ADR-017: an explanation of selected verses. Only text of a translation with
+ * ai_processing_allowed goes to the provider (never HSV/NBV21). AI on/off and the budget come first,
+ * as for every AI job; the same verses with the same text give the stored explanation back.
+ */
+export async function explainVerses(
+  db: Db,
+  provider: AiProvider,
+  p: { translation: string; book: string; chapter: number; from: number; to: number },
+): Promise<ExplainResult> {
+  const prefs = await db.from("user_preferences").select("ai_enabled").maybeSingle();
+  if (prefs.error) throw prefs.error;
+  if (prefs.data?.ai_enabled !== true) return { ok: false, kind: "ai_off" };
+  if (p.to - p.from + 1 > MAX_EXPLAIN_VERSES) return { ok: false, kind: "too_long" };
+
+  const { data: t, error: e0 } = await db.from("bible_translations").select("id, code, ai_processing_allowed").eq("code", p.translation).maybeSingle();
+  if (e0) throw e0;
+  if (!t) return { ok: false, kind: "not_found" };
+  if (t.ai_processing_allowed !== true) return { ok: false, kind: "not_allowed" };
+
+  const wanted = Array.from({ length: p.to - p.from + 1 }, (_, i) => `${p.book}.${p.chapter}.${p.from + i}`);
+  const { data: segs, error: e1 } = await db
+    .from("translation_segments")
+    .select("segment_key, reference_label, text")
+    .eq("translation_id", t.id)
+    .in("segment_key", wanted)
+    .order("display_order");
+  if (e1) throw e1;
+  const rows = (segs ?? []) as { segment_key: string; reference_label: string; text: string }[];
+  if (rows.length === 0) return { ok: false, kind: "not_found" };
+  const first = rows[0]!;
+  const last = rows.at(-1)!;
+  const label = rows.length === 1 ? first.reference_label : `${first.reference_label}-${last.segment_key.split(".").at(-1)}`;
+  const input: ExplainInput = {
+    translation: t.code,
+    label,
+    verses: rows.map((r) => ({ key: r.segment_key, verse: Number(r.segment_key.split(".").at(-1)), text: r.text })),
+  };
+  const fingerprint = createHash("sha256").update(JSON.stringify(rows.map((r) => [r.segment_key, r.text]))).digest("hex").slice(0, 24);
+
+  const r = await reserve(db, { jobType: "uitleg", key: `uitleg:${t.code}:${fingerprint}:${provider.name}/${provider.model}`, estimate: provider.estimateExplainEur(input), provider });
+  if (!r.ok) return r;
+  const job = r.job;
+  if (job.status === "klaar") {
+    const prev = await db.from("ai_explanations").select("*").eq("job_id", job.id).maybeSingle();
+    if (prev.error) throw prev.error;
+    if (!prev.data) return { ok: false, kind: "failed" };
+    return { ok: true, explanation: toExplanation(prev.data as ExplanationRow), reused: true };
+  }
+
+  try {
+    const out = await provider.explain(input);
+    const saved = await db
+      .rpc("ai_add_explanation", {
+        p_job_id: job.id,
+        p_translation: t.code,
+        p_keys: input.verses.map((v) => v.key),
+        p_label: label,
+        p_explanation: out.explanation,
+        p_cross: out.crossReferences,
+      })
+      .single();
+    if (saved.error) throw saved.error;
+    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    if (fin.error) throw fin.error;
+    return { ok: true, explanation: toExplanation(saved.data as ExplanationRow), reused: false };
+  } catch (err) {
+    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateExplainEur(input) });
+    throw err;
+  }
 }

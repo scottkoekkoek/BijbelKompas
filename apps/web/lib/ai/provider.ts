@@ -30,6 +30,10 @@ export type AskOutput = {
   costEur: number;
 };
 
+/** ADR-017: verses of a translation that may be processed by AI (never HSV/NBV21). */
+export type ExplainInput = { translation: string; label: string; verses: { key: string; verse: number; text: string }[] };
+export type ExplainOutput = { explanation: string; crossReferences: { reference: string; reason: string }[]; costEur: number };
+
 export interface AiProvider {
   /** short name, stored with every job and suggestion */
   readonly name: string;
@@ -40,6 +44,8 @@ export interface AiProvider {
   analyse(input: AnalysisInput): Promise<AnalysisOutput>;
   estimateAskEur(input: AskInput): number;
   ask(input: AskInput): Promise<AskOutput>;
+  estimateExplainEur(input: ExplainInput): number;
+  explain(input: ExplainInput): Promise<ExplainOutput>;
 }
 
 /** The first sentence of a text (at most 200 characters), taken literally so it can be checked. */
@@ -78,6 +84,15 @@ const fictief: AiProvider = {
       uncertain: false,
       text: `Testantwoord: je schreef hierover in ${titles}. Lees de bronnen hieronder.`,
       sources: used.map((f) => ({ noteId: f.noteId, blockId: f.blockId, quote: firstSentence(f.text) })),
+    };
+  },
+  estimateExplainEur: () => 0.01,
+  /** Explains nothing: only says which verses it got, so the flow can be tested. */
+  async explain(input) {
+    return {
+      costEur: 0.001,
+      explanation: `Testuitleg bij ${input.label} (${input.verses.length} ${input.verses.length === 1 ? "vers" : "verzen"}). Er is niets verstuurd.`,
+      crossReferences: [{ reference: "Johannes 1:1", reason: "Testverwijzing." }],
     };
   },
 };

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
+import { ExplainVerses } from "@/components/ai/ExplainVerses";
 import { HighlightEditor } from "./HighlightEditor";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
 
@@ -19,10 +20,12 @@ type Props = {
   noted?: number[];
   /** BK-013: the owner's highlights, in this translation's verse numbers */
   highlights?: ChapterHighlight[];
+  /** ADR-017: set only when AI is on, a provider is set and this translation may go to AI */
+  explainWith?: { name: string; external: boolean } | null;
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [] }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], explainWith = null }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
   const [marking, setMarking] = useState(false);
@@ -176,6 +179,13 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
               Wissen
             </button>
           </div>
+          {explainWith && (
+            <ExplainVerses
+              key={`${selection.from}-${selection.to}`}
+              passage={{ translation: translationCode, book: bookCode, chapter, from: selection.from, to: selection.to }}
+              provider={explainWith}
+            />
+          )}
           {marking && <HighlightEditor saveLabel="Markering opslaan" busy={busy} onSave={(c, a) => void mark(c, a)} onCancel={() => setMarking(false)} />}
           {hasNoted && linked && linked.length > 0 && (
             <section className="verse-notes" aria-label="Notities bij deze verzen">

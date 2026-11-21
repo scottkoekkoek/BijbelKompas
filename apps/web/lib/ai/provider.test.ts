@@ -44,4 +44,10 @@ describe("AI provider adapter (ADR-012)", () => {
     expect(firstSentence("Geen punt")).toBe("Geen punt");
     expect(firstSentence("x".repeat(300))).toHaveLength(200);
   });
+
+  it("the test provider explains nothing and sends nothing (ADR-017)", async () => {
+    const p = configuredProvider({ AI_PROVIDER: "fictief" })!;
+    const out = await p.explain({ translation: "TEST", label: "Genesis 1:1-2", verses: [{ key: "GEN.1.1", verse: 1, text: "a" }, { key: "GEN.1.2", verse: 2, text: "b" }] });
+    expect(out.explanation).toBe("Testuitleg bij Genesis 1:1-2 (2 verzen). Er is niets verstuurd.");
+  });
 });

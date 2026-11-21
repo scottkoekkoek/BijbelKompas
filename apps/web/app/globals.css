@@ -187,6 +187,8 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary)
   position: sticky; bottom: 16px; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px;
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+  /* a long explanation or note list scrolls inside the bar, so the verses stay readable */
+  max-height: 70vh; overflow-y: auto; overscroll-behavior: contain;
 }
 .selection-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .copy-status { color: var(--success); font-size: 0.95rem; }
@@ -208,7 +210,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary)
     font-size: 0.75rem; color: var(--muted); text-decoration: none;
   }
   .bottom-nav a[aria-current="page"] { color: var(--primary); font-weight: 600; }
-  .selection-bar { bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .selection-bar { bottom: calc(72px + env(safe-area-inset-bottom)); max-height: 55vh; }
   .chapter-nav .button { padding: 10px 12px; }
 }
 
@@ -496,6 +498,8 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ask-notes { margin: 16px 0 24px; }
 .ask-notes .hint { color: var(--muted); font-size: 0.9rem; margin: 6px 0 0; }
 .ai-answer { margin-top: 8px; }
+.ai-explain { margin-top: 10px; }
+.ai-explain .hint { color: var(--muted); font-size: 0.9rem; margin: 4px 0 0; }
 .ai-answer h3 { font-size: 1rem; margin: 14px 0 6px; }
 .ai-sources { padding-left: 1.4em; }
 .ai-sources li { margin-bottom: 10px; overflow-wrap: anywhere; }
