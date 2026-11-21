@@ -5,6 +5,7 @@ import { CompareView } from "@/components/bible/CompareView";
 import { HighlightList } from "@/components/bible/HighlightList";
 import { VerseList } from "@/components/bible/VerseList";
 import { ChevronLeftIcon, ChevronRightIcon, CompareIcon, ExternalIcon } from "@/components/icons";
+import { configuredProvider } from "@/lib/ai/provider";
 import { isBackPath, neighbours, parseVerseTarget, readerPath } from "@/lib/bible";
 import { getBooks, getChapter, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { ChapterProgress } from "@/components/bible/ChapterProgress";
@@ -34,7 +35,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const [books, translations, prefs] = await Promise.all([
     getBooks(supabase),
     getTranslations(supabase),
-    supabase.from("user_preferences").select("default_translation_id").eq("user_id", auth.user?.id ?? "").maybeSingle(),
+    supabase.from("user_preferences").select("default_translation_id, ai_enabled").eq("user_id", auth.user?.id ?? "").maybeSingle(),
   ]);
   const book = books.find((b) => b.code === rawBook.toUpperCase());
   if (!book || !Number.isInteger(chapter) || chapter < 1 || chapter > book.chapterCount) notFound();
@@ -68,6 +69,9 @@ export default async function ReaderPage({ params, searchParams }: Props) {
     ? await Promise.all([readVerses(supabase, data.translation.code, book.code, chapter), bookChapters(supabase, book.code), nextUnread(supabase, book.code, chapter)])
     : [[], [], null];
   const progress = chapters.find((c) => c.chapter === chapter);
+  // ADR-017: AI-uitleg only with AI on, a provider, and a translation that may go to AI
+  const provider = configuredProvider();
+  const explainWith = provider && prefs.data?.ai_enabled === true && translation?.aiAllowed ? { name: provider.name, external: provider.external } : null;
   const comparePath = (code: string) => `${readerPath(book.code, chapter, translation?.code)}&naast=${code}`;
 
   return (
@@ -185,6 +189,7 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           highlights={highlights}
           target={targetMissing ? null : target}
           read={readList}
+          explainWith={explainWith}
         />
       )}
 

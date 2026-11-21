@@ -43,12 +43,12 @@ describe("canonical verses", () => {
 });
 
 describe("Statenvertaling entry", () => {
-  it("is public domain, without AI rights, and off until its text is imported", async () => {
+  it("is public domain, may be explained by AI (ADR-017), and off until its text is imported", async () => {
     const { rows } = await db.query(
       `select rights_status, offline_allowed, ai_processing_allowed, attribution is not null as attributed
        from public.bible_translations where code = 'SV'`,
     );
-    expect(rows[0]).toEqual({ rights_status: "public_domain", offline_allowed: true, ai_processing_allowed: false, attributed: true });
+    expect(rows[0]).toEqual({ rights_status: "public_domain", offline_allowed: true, ai_processing_allowed: true, attributed: true });
   });
 });
 

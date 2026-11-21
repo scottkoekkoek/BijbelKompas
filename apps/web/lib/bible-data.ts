@@ -14,6 +14,8 @@ export type ReaderTranslation = {
   hasText: boolean;
   /** BK-014: the text may be kept on a device (only with text rights) */
   offlineAllowed: boolean;
+  /** ADR-017: the text may be sent to an AI provider (never for reference-only translations) */
+  aiAllowed: boolean;
 };
 
 /** Translations whose text may be shown (RLS already hides disabled ones). */
@@ -38,7 +40,7 @@ export async function getBooks(db: Db): Promise<BibleBook[]> {
 export async function getTranslations(db: Db): Promise<ReaderTranslation[]> {
   const { data, error } = await db
     .from("bible_translations")
-    .select("id, code, name, rights_status, attribution, external_url, offline_allowed")
+    .select("id, code, name, rights_status, attribution, external_url, offline_allowed, ai_processing_allowed")
     .order("code");
   if (error) throw error;
   return (data ?? []).map((t) => ({
@@ -50,6 +52,7 @@ export async function getTranslations(db: Db): Promise<ReaderTranslation[]> {
     externalUrl: t.external_url,
     hasText: TEXT_ALLOWED.has(t.rights_status),
     offlineAllowed: TEXT_ALLOWED.has(t.rights_status) && t.offline_allowed === true,
+    aiAllowed: TEXT_ALLOWED.has(t.rights_status) && t.ai_processing_allowed === true,
   }));
 }
 

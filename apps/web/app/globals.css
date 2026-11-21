@@ -1076,6 +1076,8 @@ a.icon-button:hover, button.icon-button:hover { background: var(--surface-2); co
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-lg); animation: rise-in var(--duration-slow) var(--ease-out);
+  /* ADR-017: a long AI explanation scrolls inside the bar, so the verses stay readable */
+  max-height: 70vh; overflow-y: auto; overscroll-behavior: contain;
 }
 .selection-ref { font-family: var(--font-display); font-size: var(--text-md); }
 .selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -1377,6 +1379,8 @@ a.icon-button:hover, button.icon-button:hover { background: var(--surface-2); co
 .ask-notes { margin: var(--space-4) 0 var(--space-6); padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
 .ask-notes .hint { color: var(--muted); font-size: var(--text-sm); margin: 6px 0 0; }
 .ai-answer { margin-top: var(--space-3); }
+.ai-explain { margin-top: var(--space-2); }
+.ai-explain .hint { margin: var(--space-1) 0 0; }
 .ai-answer h3 { font-size: var(--text-base); margin: var(--space-4) 0 6px; }
 .ai-sources { padding-left: 1.4em; }
 .ai-sources li { margin-bottom: 10px; overflow-wrap: anywhere; }

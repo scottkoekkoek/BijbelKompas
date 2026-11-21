@@ -3,7 +3,7 @@
 
 insert into public.bible_translations
   (code, name, language, canon_id, rights_status, offline_allowed, ai_processing_allowed, attribution, enabled)
-select 'TEST', 'Testvertaling (fictief)', 'nl', id, 'test_fixture', true, false,
+select 'TEST', 'Testvertaling (fictief)', 'nl', id, 'test_fixture', true, true,
        'Fictieve testtekst, geen echte Bijbelvertaling', true
 from public.bible_canons where code = 'PROT66';
 
