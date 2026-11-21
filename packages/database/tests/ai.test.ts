@@ -260,3 +260,34 @@ describe("AI-uitleg bij verzen (ADR-017)", () => {
     });
   });
 });
+
+describe("AI-opzet van een notitie (ADR-018)", () => {
+  it("stores an outline only for an open opzet job of the owner's own note, and cleans the points", async () => {
+    let jobId = "";
+    await as(db, { kind: "user", id: alice }, async (q) => {
+      await aiOn(q);
+      const note = await newNote(q, "Preek over Noach", "God is geduldig.");
+      const job = (await q.query("select * from public.ai_reserve('opzet', 'o1', 0.01, 'fictief', 'test-1', $1, 1)", [note])).rows[0];
+      jobId = job.id;
+      const o = (await q.query("select * from public.ai_add_outline($1, 'Samenvatting', 'Kern', $2, 'Toepassing')", [job.id, JSON.stringify([
+        { heading: "Eén", details: ["a", "", 3, "b"] },
+        { heading: " ", details: ["weg"] },
+        "los",
+      ])])).rows[0];
+      expect(o).toMatchObject({ note_id: note, summary: "Samenvatting", main_thought: "Kern", application: "Toepassing", model_version: "fictief/test-1" });
+      expect(o.points).toEqual([{ heading: "Eén", details: ["a", "b"] }]);
+      expect(o.content_hash).not.toBe("");
+      // the note itself is untouched
+      expect((await q.query("select title from public.notes where id = $1", [note])).rows[0].title).toBe("Preek over Noach");
+      await q.query("select public.ai_finish($1, true, 0.001)", [job.id]);
+      expect(await fails(q, "select public.ai_add_outline($1, 's', 'k', '[]', '')", [job.id])).toBe("42501");
+      const vraag = (await q.query("select * from public.ai_reserve('vraag', 'o2', 0.01, 'fictief', 'test-1')")).rows[0];
+      expect(await fails(q, "select public.ai_add_outline($1, 's', 'k', '[]', '')", [vraag.id])).toBe("42501");
+      expect(await fails(q, "insert into public.ai_outlines (owner_id, job_id, note_id, source_revision, content_hash, summary, main_thought, model_version) values (auth.uid(), $1, $2, 1, 'h', 's', 'k', 'm')", [vraag.id, note])).toBe("42501");
+    });
+    await as(db, { kind: "user", id: bob }, async (q) => {
+      expect((await q.query("select * from public.ai_outlines")).rows).toEqual([]);
+      expect(await fails(q, "select public.ai_add_outline($1, 's', 'k', '[]', '')", [jobId])).toBe("42501");
+    });
+  });
+});

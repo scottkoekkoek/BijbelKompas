@@ -430,8 +430,8 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .field.narrow { max-width: 240px; }
 .link-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 4px; }
 .link-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-.note-relations, .ai-suggestions { margin-top: 8px; }
-.note-relations summary, .ai-suggestions summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.note-relations, .ai-suggestions, .ai-outline { margin-top: 8px; }
+.note-relations summary, .ai-suggestions summary, .ai-outline summary { cursor: pointer; font-weight: 600; min-height: 32px; }
 .collection-checks { border: 0; padding: 8px 0 0; margin: 0; display: grid; gap: 6px; }
 .timeline-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; align-items: end; margin: 16px 0 20px; }
 .timeline-filters .button-row { margin: 0 0 18px; }
@@ -487,12 +487,12 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 
 /* Sprint 11: AI suggestions and budget (BK-039..BK-045) */
 .ai-meter { width: 100%; max-width: 420px; height: 14px; }
-.ai-suggestions h3 { font-size: 1rem; margin: 14px 0 6px; }
+.ai-suggestions h3, .ai-outline h3 { font-size: 1rem; margin: 14px 0 6px; }
 .suggestion-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .suggestion-list .card { padding: 12px 14px; }
 .suggestion-list p { margin: 0 0 6px; }
 .suggestion-list .button-row { margin: 6px 0 0; }
-.ai-suggestions .hint { color: var(--muted); font-size: 0.9rem; }
+.ai-suggestions .hint, .ai-outline .hint { color: var(--muted); font-size: 0.9rem; }
 
 /* Sprint 12: questions to your notes (BK-042, BK-043) */
 .ask-notes { margin: 16px 0 24px; }

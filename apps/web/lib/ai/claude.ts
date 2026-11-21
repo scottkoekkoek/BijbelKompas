@@ -13,7 +13,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import type { AiProvider, AnalysisInput, AskInput, AskOutput, ExplainInput, ExplainOutput, ProposedSuggestion } from "./provider";
+import type { AiProvider, AnalysisInput, AskInput, AskOutput, ExplainInput, ExplainOutput, OutlineInput, OutlineOutput, ProposedSuggestion } from "./provider";
 
 /** USD per million tokens (Anthropic list prices). Counted 1:1 as euros: that over-estimates a little, which is the safe side for the budget. */
 export const PRICES: Record<string, { input: number; output: number }> = {
@@ -57,6 +57,20 @@ const EXPLAIN_RULES = [
   "Citeer geen tekst uit andere Bijbelvertalingen (zoals HSV of NBV21). Noem bij kruisverwijzingen alleen de verwijzing (bijvoorbeeld Johannes 1:1) met één korte zin waarom, hoogstens 5.",
   "Schrijf in gewone alinea's zonder opmaak, hoogstens 350 woorden.",
 ].join("\n");
+
+const OUTLINE_RULES = [
+  "Hieronder staat één afgeronde notitie van de gebruiker (bijvoorbeeld aantekeningen bij een preek of een Bijbelstudie).",
+  "Maak daarvan een voorstel voor een overzichtelijke opzet, alleen op basis van wat in de notitie staat. Voeg geen eigen theologie of nieuwe punten toe.",
+  "summary: een samenvatting in 2 tot 4 zinnen. mainThought: de kerngedachte in één zin. points: de hoofdpunten in de volgorde van de notitie (hoogstens 7), elk met een korte kop en 0 tot 4 korte subpunten. application: de toepassing die in de notitie staat, of een lege tekst als die er niet in staat.",
+  "Schrijf in de woorden en de toon van de gebruiker, zonder opmaak.",
+].join("\n");
+
+const OutlineSchema = z.object({
+  summary: z.string(),
+  mainThought: z.string(),
+  points: z.array(z.object({ heading: z.string(), details: z.array(z.string()) })),
+  application: z.string(),
+});
 
 const ExplainSchema = z.object({
   explanation: z.string(),
@@ -112,6 +126,10 @@ export function explainPrompt(input: ExplainInput): string {
   return `${EXPLAIN_RULES}\n\n<verzen vertaling="${escapeTagText(input.translation)}" verwijzing="${escapeTagText(input.label)}">\n${verses}\n</verzen>`;
 }
 
+export function outlinePrompt(input: OutlineInput): string {
+  return `${OUTLINE_RULES}\n\n<notitie titel="${escapeTagText(input.title || "Naamloze notitie")}" soort="${escapeTagText(input.noteType)}">\n${escapeTagText(input.text.slice(0, MAX_NOTE_CHARS))}\n</notitie>`;
+}
+
 export function analysePrompt(input: AnalysisInput): string {
   const cands = input.candidates
     .slice(0, MAX_CANDIDATES)
@@ -154,8 +172,26 @@ export function claudeProvider(opts: { client: ClaudeClient; model?: string }): 
     };
   }
 
+  async function outline(input: OutlineInput): Promise<OutlineOutput> {
+    const { parsed, cost } = await call(OutlineSchema, outlinePrompt(input));
+    if (!parsed) return { costEur: cost, summary: "Van deze notitie kon geen opzet gemaakt worden.", mainThought: "-", points: [], application: "" };
+    const clean = (t: string, max: number) => unescapeTagText(t).trim().slice(0, max);
+    return {
+      costEur: cost,
+      summary: clean(parsed.summary, 2_000),
+      mainThought: clean(parsed.mainThought, 500),
+      points: parsed.points
+        .slice(0, 12)
+        .map((p) => ({ heading: clean(p.heading, 200), details: p.details.slice(0, 8).map((d) => clean(d, 400)).filter(Boolean) }))
+        .filter((p) => p.heading),
+      application: clean(parsed.application, 2_000),
+    };
+  }
+
   return {
     name: "claude",
+    outline,
+    estimateOutlineEur: (input) => estimate(model, Math.min(input.text.length, MAX_NOTE_CHARS)),
     explain,
     estimateExplainEur: (input) => estimate(model, input.verses.reduce((n, v) => n + v.text.length + 6, 0)),
     model,
