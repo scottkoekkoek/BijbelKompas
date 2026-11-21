@@ -33,8 +33,22 @@ test("select a verse range and copy the reference", async ({ page, context, brow
   await expect(page.getByRole("button", { name: "Vers 2 selecteren" })).toHaveAttribute("aria-pressed", "true");
 
   await bar.getByRole("button", { name: "Kopieer verwijzing" }).click();
-  await expect(page.getByRole("status")).toHaveText("Verwijzing gekopieerd.");
+  // the reader page also has the reading-progress status (feature 6)
+  await expect(page.getByRole("status").filter({ hasText: "Verwijzing gekopieerd." })).toHaveCount(1);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Genesis 1:1-3 (TEST)");
+
+  // on a phone the bar stays above the bottom navigation, so every action can be tapped
+  const nav = page.locator(".bottom-nav");
+  if (await nav.isVisible()) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const barBox = (await bar.boundingBox())!;
+    const navBox = (await nav.boundingBox())!;
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(navBox.y + 1);
+    await bar.getByRole("button", { name: "In notitie zetten" }).click({ trial: true }); // not covered
+    // the last tool is on screen, not hidden to the right
+    const wipe = (await bar.getByRole("button", { name: "Wissen" }).boundingBox())!;
+    expect(wipe.x + wipe.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
 
   await bar.getByRole("button", { name: "Wissen" }).click();
   await expect(bar).toBeHidden();

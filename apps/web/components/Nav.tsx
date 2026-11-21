@@ -10,32 +10,48 @@ const MAIN = [
   { href: "/search", label: "Zoeken", Icon: SearchIcon },
 ];
 
+const ORGANISE = [
+  { href: "/collections", label: "Collecties", Icon: FolderIcon },
+  { href: "/questions", label: "Vragen", Icon: QuestionIcon },
+  { href: "/timeline", label: "Tijdlijn", Icon: TimelineIcon },
+  { href: "/templates", label: "Sjablonen", Icon: TemplateIcon },
+];
+
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+type Item = (typeof MAIN)[number];
+
+function NavItems({ items, pathname }: { items: Item[]; pathname: string }) {
+  return (
+    <ul className="nav-list">
+      {items.map(({ href, label, Icon }) => (
+        <li key={href}>
+          <Link href={href} className="nav-link" title={label} aria-current={isActive(pathname, href) ? "page" : undefined}>
+            <Icon />
+            <span className="nav-label">{label}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function SidebarNav() {
   const pathname = usePathname();
-  const items = [
-    ...MAIN,
-    { href: "/collections", label: "Collecties", Icon: FolderIcon },
-    { href: "/questions", label: "Vragen", Icon: QuestionIcon },
-    { href: "/timeline", label: "Tijdlijn", Icon: TimelineIcon },
-    { href: "/templates", label: "Sjablonen", Icon: TemplateIcon },
-    { href: "/settings", label: "Instellingen", Icon: SettingsIcon },
-  ];
   return (
     <nav aria-label="Hoofdmenu">
-      <ul className="nav-list">
-        {items.map(({ href, label, Icon }) => (
-          <li key={href}>
-            <Link href={href} className="nav-link" aria-current={isActive(pathname, href) ? "page" : undefined}>
-              <Icon />
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="nav-section">
+        <NavItems items={MAIN} pathname={pathname} />
+      </div>
+      <div className="nav-section">
+        <p className="nav-heading" aria-hidden="true">Ordenen</p>
+        <NavItems items={ORGANISE} pathname={pathname} />
+      </div>
+      <div className="nav-section">
+        <NavItems items={[{ href: "/settings", label: "Instellingen", Icon: SettingsIcon }]} pathname={pathname} />
+      </div>
     </nav>
   );
 }
@@ -52,7 +68,9 @@ export function BottomNav() {
           return (
             <li key={href}>
               <Link href={href} aria-current={active ? "page" : undefined}>
-                <Icon />
+                <span className="nav-pill">
+                  <Icon />
+                </span>
                 {label}
               </Link>
             </li>

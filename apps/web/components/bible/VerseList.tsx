@@ -3,9 +3,15 @@ import type { ChapterHighlight, ChapterVerse, HighlightColor } from "@bk/schemas
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { QuickNoteForm } from "@/components/study/QuickNoteForm";
+import { QuickQuestionForm } from "@/components/study/QuickQuestionForm";
+import { StudyPanel } from "@/components/study/StudyPanel";
+import { Sheet } from "@/components/ui/Sheet";
+import type { QuickPassage } from "@/lib/notes/quick";
 import { NewNoteButton } from "@/components/notes/NewNoteButton";
 import { ExplainVerses } from "@/components/ai/ExplainVerses";
 import { HighlightEditor } from "./HighlightEditor";
+import { markReading } from "./reading";
 import { formatReference, nextSelection, type Selection } from "@/lib/bible";
 
 type LinkedNote = { noteId: string; title: string; blockId: string; reference: string; snippet: string };
@@ -20,18 +26,24 @@ type Props = {
   noted?: number[];
   /** BK-013: the owner's highlights, in this translation's verse numbers */
   highlights?: ChapterHighlight[];
+  /** audit BK-01: the verse or range a link pointed at; marked and scrolled into view */
+  target?: { from: number; to: number } | null;
+  /** feature 6: verse numbers the owner marked as read */
+  read?: number[];
   /** ADR-017: set only when AI is on, a provider is set and this translation may go to AI */
   explainWith?: { name: string; external: boolean } | null;
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], explainWith = null }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null, read = [], explainWith = null }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
   const [marking, setMarking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [linked, setLinked] = useState<LinkedNote[] | null>(null);
+  // features 1-3: one panel at a time on top of the reader; the selection stays as it was
+  const [panel, setPanel] = useState<null | "studie" | "aantekening" | "vraag">(null);
 
   // BK-031: the notes linked to the selected verses (only asked when a selected verse has a note).
   const hasNoted = !!selection && noted.some((n) => n >= selection.from && n <= selection.to);
@@ -49,6 +61,15 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
     };
   }, [selection, hasNoted, translationCode, bookCode, chapter]);
 
+  // audit BK-01: land on the exact verse, also after a reload or a client-side navigation
+  useEffect(() => {
+    if (!target) return;
+    const el = document.getElementById(`v${target.from}`);
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [target]);
+
   // Remember where the owner is reading. Failing to save is harmless, so it stays silent.
   useEffect(() => {
     void fetch("/api/v1/me/reading-position", {
@@ -59,7 +80,27 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
   }, [translationCode, bookCode, chapter]);
 
   const reference = formatReference(bookName, chapter, selection, translationCode);
+  const passage: QuickPassage | null = selection
+    ? { translation: translationCode, book: bookCode, startChapter: chapter, startVerse: selection.from, endChapter: chapter, endVerse: selection.to, label: formatReference(bookName, chapter, selection) }
+    : null;
   const isSelected = (n: number) => !!selection && n >= selection.from && n <= selection.to;
+  const isRead = (n: number) => read.includes(n);
+  // feature 6: a selection that is read completely can be marked unread again
+  const selectionRead = !!selection && verses.filter((v) => isSelected(v.verse)).every((v) => isRead(v.verse));
+
+  async function markRead(asRead: boolean) {
+    if (!selection) return;
+    setBusy(true);
+    try {
+      await markReading({ translation: translationCode, book: bookCode, chapter, from: selection.from, to: selection.to, read: asRead });
+      setStatus(asRead ? `${reference} gemarkeerd als gelezen.` : `${reference} weer op ongelezen gezet.`);
+      router.refresh();
+    } catch {
+      setStatus("Je leesvoortgang is niet bewaard. Probeer het opnieuw.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function toggle(n: number) {
     setSelection((s) => nextSelection(s, n));
@@ -121,7 +162,7 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
           <span
             key={v.verse}
             id={`v${v.verse}`}
-            className={["verse", isSelected(v.verse) && "selected", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
+            className={["verse", isSelected(v.verse) && "selected", target && v.verse >= target.from && v.verse <= target.to && "target", isRead(v.verse) && "read", h && `hl hl-${h.color}`].filter(Boolean).join(" ")}
             data-verse={v.verse}
             title={h?.annotation || undefined}
           >
@@ -142,7 +183,8 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             <span className="verse-text" onClick={() => toggle(v.verse)}>
               {v.text}
             </span>
-            {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}{" "}
+            {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}
+            {isRead(v.verse) && <span className="visually-hidden"> (gelezen)</span>}{" "}
           </span>
           );
         })}
@@ -151,12 +193,15 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
       {selection && (
         <div className="selection-bar" role="region" aria-label="Geselecteerde verzen">
           <strong className="selection-ref">{reference}</strong>
-          <div className="selection-actions">
-            <button type="button" className="button" onClick={() => copy("reference")}>
-              Kopieer verwijzing
+          <div className="selection-actions study-actions">
+            <button type="button" className="button" onClick={() => setPanel("studie")}>
+              Mijn studie
             </button>
-            <button type="button" className="button secondary" onClick={() => copy("text")}>
-              Kopieer tekst
+            <button type="button" className="button secondary" onClick={() => setPanel("aantekening")}>
+              Snelle aantekening
+            </button>
+            <button type="button" className="button secondary" onClick={() => setPanel("vraag")}>
+              Stel een vraag
             </button>
             <NewNoteButton
               label="In notitie zetten"
@@ -172,10 +217,21 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
                 },
               }}
             />
-            <button type="button" className="button secondary" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
+          </div>
+          <div className="selection-actions tool-actions">
+            <button type="button" className="button ghost" onClick={() => copy("reference")}>
+              Kopieer verwijzing
+            </button>
+            <button type="button" className="button ghost" onClick={() => copy("text")}>
+              Kopieer tekst
+            </button>
+            <button type="button" className="button ghost" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
               Markeren
             </button>
-            <button type="button" className="button secondary" onClick={() => setSelection(null)}>
+            <button type="button" className="button ghost" disabled={busy} onClick={() => void markRead(!selectionRead)}>
+              {selectionRead ? "Markeer als ongelezen" : "Markeer als gelezen"}
+            </button>
+            <button type="button" className="button ghost" onClick={() => setSelection(null)}>
               Wissen
             </button>
           </div>
@@ -202,6 +258,23 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             </section>
           )}
         </div>
+      )}
+      {selection && (
+        <>
+          <Sheet open={panel === "studie"} onClose={() => setPanel(null)} title={`Mijn studie bij ${passage!.label}`}>
+            <StudyPanel
+              query={{ translation: translationCode, book: bookCode, chapter, from: selection.from, to: selection.to }}
+              onQuickNote={() => setPanel("aantekening")}
+              onAsk={() => setPanel("vraag")}
+            />
+          </Sheet>
+          <Sheet open={panel === "aantekening"} onClose={() => setPanel(null)} title="Snelle aantekening">
+            <QuickNoteForm passage={passage} onClose={() => setPanel(null)} />
+          </Sheet>
+          <Sheet open={panel === "vraag"} onClose={() => setPanel(null)} title="Stel een vraag">
+            <QuickQuestionForm passage={passage!} onClose={() => setPanel(null)} onSaved={() => router.refresh()} />
+          </Sheet>
+        </>
       )}
       <p className="visually-hidden" role="status" aria-live="polite">
         {status}

@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ArchiveIcon } from "@/components/icons";
 
 export function ArchiveButton({ id, archived }: { id: string; archived: boolean }) {
   const router = useRouter();
@@ -17,7 +18,8 @@ export function ArchiveButton({ id, archived }: { id: string; archived: boolean 
     router.refresh();
   }
   return (
-    <button type="button" className="button secondary" onClick={toggle} disabled={busy}>
+    <button type="button" className="button ghost small" onClick={toggle} disabled={busy}>
+      <ArchiveIcon size={16} />
       {archived ? "Terughalen uit archief" : "Archiveren"}
     </button>
   );

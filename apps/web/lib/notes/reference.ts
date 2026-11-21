@@ -20,6 +20,30 @@ export function findBook(books: BookInfo[], query: string): BookInfo | null {
   return books.find((b) => norm(b.name) === q) ?? books.find((b) => norm(b.name).startsWith(q)) ?? null;
 }
 
+/** All books a typed name could mean: one when it is exact or unique, more when it is ambiguous ("Jo"). */
+export function bookCandidates(books: BookInfo[], query: string): BookInfo[] {
+  const q = norm(query);
+  if (!q) return [];
+  const exact = books.filter((b) => norm(b.name) === q);
+  return exact.length > 0 ? exact : books.filter((b) => norm(b.name).startsWith(q));
+}
+
+/**
+ * Audit BK-02: a search term that is a Bible reference. Returns every reading when the book name
+ * is ambiguous, an error when it is a reference with impossible numbers, or null when it is just a word.
+ */
+export function referenceInSearch(input: string, books: BookInfo[]): { refs: ParsedRef[] } | { error: string } | null {
+  const m = REF.exec(input.replace(/[\u2013\u2014]/g, "-"));
+  if (!m) return null;
+  const candidates = bookCandidates(books, m[1]!);
+  if (candidates.length === 0) return null;
+  const rest = input.replace(/[\u2013\u2014]/g, "-").slice(m[1]!.length);
+  const parsed = candidates.slice(0, 6).map((b) => parseReference(`${b.name} ${rest}`, [b]));
+  const refs = parsed.filter((p): p is ParsedRef => !("error" in p));
+  if (refs.length > 0) return { refs };
+  return { error: (parsed[0] as { error: string }).error };
+}
+
 const REF = /^\s*((?:[1-3]\s*)?[^\d:]+?)\s*(\d{1,3})(?:\s*:\s*(\d{1,3}))?(?:\s*-\s*(\d{1,3})(?:\s*:\s*(\d{1,3}))?)?\s*$/u;
 
 /**
@@ -27,7 +51,7 @@ const REF = /^\s*((?:[1-3]\s*)?[^\d:]+?)\s*(\d{1,3})(?:\s*:\s*(\d{1,3}))?(?:\s*-
  * A whole chapter is stored as verse 1 to 999 and resolved by the database.
  */
 export function parseReference(input: string, books: BookInfo[]): ParsedRef | { error: string } {
-  const m = REF.exec(input);
+  const m = REF.exec(input.replace(/[\u2013\u2014]/g, "-"));
   if (!m) return { error: "Schrijf de verwijzing als bijvoorbeeld “Joh 3:16-18”." };
   const [, bookPart, c1, v1, x, y] = m;
   const book = findBook(books, bookPart!);

@@ -111,7 +111,7 @@ export function plainText(node: PMNode): string {
     : parts.join("");
 }
 
-function refFromAttrs(a: Record<string, unknown>): (PassageRef & { label: string }) | null {
+export function refFromAttrs(a: Record<string, unknown>): (PassageRef & { label: string }) | null {
   const n = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : null);
   const r = {
     translation: a.translation,
