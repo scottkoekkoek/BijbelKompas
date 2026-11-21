@@ -1,7 +1,7 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { createHash } from "node:crypto";
-import type { AiProvider, ExplainInput, Fragment } from "./provider";
+import type { AiProvider, ExplainInput, Fragment, OutlineInput, OutlinePoint } from "./provider";
 import { checkedSources } from "./sources";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -91,7 +91,7 @@ type Reservation = { ok: true; job: { id: string; status: "gereserveerd" | "klaa
  */
 async function reserve(
   db: Db,
-  a: { jobType: "analyse" | "vraag" | "uitleg"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
+  a: { jobType: "analyse" | "vraag" | "uitleg" | "opzet"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
 ): Promise<Reservation> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const { data, error } = await db
@@ -394,6 +394,117 @@ export async function explainVerses(
     return { ok: true, explanation: toExplanation(saved.data as ExplanationRow), reused: false };
   } catch (err) {
     await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateExplainEur(input) });
+    throw err;
+  }
+}
+
+export type AiOutline = {
+  id: string;
+  noteId: string;
+  summary: string;
+  mainThought: string;
+  points: OutlinePoint[];
+  application: string;
+  model: string;
+  createdAt: string;
+  /** the note has changed since this outline was made */
+  stale: boolean;
+};
+type OutlineRow = {
+  id: string;
+  note_id: string;
+  content_hash: string;
+  summary: string;
+  main_thought: string;
+  points: OutlinePoint[];
+  application: string;
+  model_version: string;
+  created_at: string;
+};
+const toOutline = (o: OutlineRow, currentHash: string | null): AiOutline => ({
+  id: o.id,
+  noteId: o.note_id,
+  summary: o.summary,
+  mainThought: o.main_thought,
+  points: o.points,
+  application: o.application,
+  model: o.model_version,
+  createdAt: o.created_at,
+  stale: currentHash !== null && o.content_hash !== currentHash,
+});
+
+async function currentHash(db: Db, noteId: string): Promise<string | null> {
+  const { data, error } = await db.from("note_documents").select("content_hash").eq("note_id", noteId).maybeSingle();
+  if (error) throw error;
+  return data?.content_hash ?? null;
+}
+
+/** The latest outline of a note, or null. */
+export async function latestOutline(db: Db, noteId: string): Promise<AiOutline | null> {
+  const { data, error } = await db.from("ai_outlines").select("*").eq("note_id", noteId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return toOutline(data as OutlineRow, await currentHash(db, noteId));
+}
+
+export type OutlineResult =
+  | { ok: true; outline: AiOutline; reused: boolean }
+  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "failed" };
+
+/**
+ * ADR-018: an outline and summary of a finished note, as a proposal next to it. Same order as every
+ * AI job (AI on, note finished, budget reserved first); the same text is never outlined twice.
+ * The note itself is never changed.
+ */
+export async function outlineNote(db: Db, provider: AiProvider, noteId: string): Promise<OutlineResult> {
+  const prefs = await db.from("user_preferences").select("ai_enabled").maybeSingle();
+  if (prefs.error) throw prefs.error;
+  if (prefs.data?.ai_enabled !== true) return { ok: false, kind: "ai_off" };
+  const { data: note, error } = await db.from("notes").select("id, title, note_type, status, current_revision").eq("id", noteId).maybeSingle();
+  if (error) throw error;
+  if (!note) return { ok: false, kind: "not_found" };
+  if (note.status !== "afgerond") return { ok: false, kind: "not_finished" };
+
+  const [hash, { data: blocks, error: e1 }] = await Promise.all([
+    currentHash(db, noteId),
+    db.from("note_blocks").select("plain_text").eq("note_id", noteId).order("position").limit(2000),
+  ]);
+  if (e1) throw e1;
+  const input: OutlineInput = {
+    noteId,
+    title: note.title,
+    noteType: note.note_type,
+    text: (blocks ?? []).map((b) => b.plain_text).join("\n"),
+  };
+
+  const r = await reserve(db, {
+    jobType: "opzet",
+    key: `opzet:${noteId}:${hash ?? `r${note.current_revision}`}:${provider.name}/${provider.model}`,
+    estimate: provider.estimateOutlineEur(input),
+    provider,
+    noteId,
+    revision: note.current_revision,
+  });
+  if (!r.ok) return r;
+  const job = r.job;
+  if (job.status === "klaar") {
+    const prev = await db.from("ai_outlines").select("*").eq("job_id", job.id).maybeSingle();
+    if (prev.error) throw prev.error;
+    if (!prev.data) return { ok: false, kind: "failed" };
+    return { ok: true, outline: toOutline(prev.data as OutlineRow, hash), reused: true };
+  }
+
+  try {
+    const out = await provider.outline(input);
+    const saved = await db
+      .rpc("ai_add_outline", { p_job_id: job.id, p_summary: out.summary, p_main_thought: out.mainThought, p_points: out.points, p_application: out.application })
+      .single();
+    if (saved.error) throw saved.error;
+    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    if (fin.error) throw fin.error;
+    return { ok: true, outline: toOutline(saved.data as OutlineRow, hash), reused: false };
+  } catch (err) {
+    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateOutlineEur(input) });
     throw err;
   }
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { NoteOutline } from "@/components/ai/NoteOutline";
 import { NoteSuggestions } from "@/components/ai/NoteSuggestions";
 import { NoteCollections } from "@/components/collections/NoteCollections";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
@@ -75,6 +76,13 @@ export default async function NotePage({ params }: Props) {
       />
       <NoteSuggestions
         noteId={note.id}
+        aiEnabled={prefs.data?.ai_enabled === true}
+        provider={provider ? { name: provider.name, external: provider.external } : null}
+      />
+      <NoteOutline
+        noteId={note.id}
+        title={note.title}
+        noteType={note.noteType}
         aiEnabled={prefs.data?.ai_enabled === true}
         provider={provider ? { name: provider.name, external: provider.external } : null}
       />

@@ -688,27 +688,27 @@ details > summary:focus-visible { border-radius: var(--radius-md); }
 /* Disclosure panels (collections of a note, AI suggestions, search filters) */
 .note-relations { margin-top: var(--space-4); }
 .note-relations > .note-list-meta { margin: var(--space-2) var(--space-1) 0; }
-.note-relations > details, details.ai-suggestions, details.search-filters {
+.note-relations > details, details.ai-suggestions, details.search-filters, details.ai-outline {
   margin-top: var(--space-4); background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-xs);
 }
 .note-relations > details { margin-top: 0; }
-.note-relations > details > summary, .ai-suggestions > summary, .search-filters > summary {
+.note-relations > details > summary, .ai-suggestions > summary, .search-filters > summary, .ai-outline > summary {
   list-style: none; display: flex; align-items: center; gap: var(--space-2);
   min-height: var(--control-lg); padding: 0 var(--space-5); font-weight: var(--weight-semibold); color: var(--text);
   border-radius: var(--radius); transition: background-color var(--duration-fast) var(--ease);
 }
-.note-relations > details > summary::-webkit-details-marker, .ai-suggestions > summary::-webkit-details-marker, .search-filters > summary::-webkit-details-marker { display: none; }
-.note-relations > details > summary::after, .ai-suggestions > summary::after, .search-filters > summary::after {
+.note-relations > details > summary::-webkit-details-marker, .ai-suggestions > summary::-webkit-details-marker, .search-filters > summary::-webkit-details-marker, .ai-outline > summary::-webkit-details-marker { display: none; }
+.note-relations > details > summary::after, .ai-suggestions > summary::after, .search-filters > summary::after, .ai-outline > summary::after {
   content: ""; margin-left: auto; width: 8px; height: 8px; flex-shrink: 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
   transform: translateY(-2px) rotate(45deg); transition: transform var(--duration) var(--ease);
 }
-.note-relations > details[open] > summary::after, .ai-suggestions[open] > summary::after, .search-filters[open] > summary::after { transform: translateY(2px) rotate(225deg); }
-.note-relations > details > summary:hover, .ai-suggestions > summary:hover, .search-filters > summary:hover { background: var(--surface-2); }
-.note-relations > details[open] > summary, .ai-suggestions[open] > summary, .search-filters[open] > summary { border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
-.note-relations > details > :not(summary), .ai-suggestions > :not(summary), .search-filters > :not(summary) { margin-left: var(--space-5); margin-right: var(--space-5); }
-.note-relations > details > summary + *, .ai-suggestions > summary + *, .search-filters > summary + * { margin-top: var(--space-4); }
-.note-relations > details > :last-child, .ai-suggestions > :last-child, .search-filters > :last-child { margin-bottom: var(--space-5); }
+.note-relations > details[open] > summary::after, .ai-suggestions[open] > summary::after, .search-filters[open] > summary::after, .ai-outline[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.note-relations > details > summary:hover, .ai-suggestions > summary:hover, .search-filters > summary:hover, .ai-outline > summary:hover { background: var(--surface-2); }
+.note-relations > details[open] > summary, .ai-suggestions[open] > summary, .search-filters[open] > summary, .ai-outline[open] > summary { border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+.note-relations > details > :not(summary), .ai-suggestions > :not(summary), .search-filters > :not(summary), .ai-outline > :not(summary) { margin-left: var(--space-5); margin-right: var(--space-5); }
+.note-relations > details > summary + *, .ai-suggestions > summary + *, .search-filters > summary + *, .ai-outline > summary + * { margin-top: var(--space-4); }
+.note-relations > details > :last-child, .ai-suggestions > :last-child, .search-filters > :last-child, .ai-outline > :last-child { margin-bottom: var(--space-5); }
 .note-relations > details > .visually-hidden:last-child { margin: -1px; }
 
 /* Tabs / segmented filters */
@@ -1369,12 +1369,12 @@ a.icon-button:hover, button.icon-button:hover { background: var(--surface-2); co
 
 /* AI suggestions, budget and questions to your notes */
 .ai-meter { width: 100%; max-width: 440px; height: 12px; margin: var(--space-1) 0 var(--space-3); }
-.ai-suggestions h3 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: var(--space-4) 0 var(--space-2); }
+.ai-suggestions h3, .ai-outline h3 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: var(--space-4) 0 var(--space-2); }
 .suggestion-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); }
 .suggestion-list .card { padding: var(--space-4); margin: 0; }
 .suggestion-list p { margin: 0 0 6px; }
 .suggestion-list .button-row { margin: var(--space-2) 0 0; }
-.ai-suggestions .hint { color: var(--muted); font-size: var(--text-sm); }
+.ai-suggestions .hint, .ai-outline .hint { color: var(--muted); font-size: var(--text-sm); }
 
 .ask-notes { margin: var(--space-4) 0 var(--space-6); padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
 .ask-notes .hint { color: var(--muted); font-size: var(--text-sm); margin: 6px 0 0; }

@@ -34,6 +34,11 @@ export type AskOutput = {
 export type ExplainInput = { translation: string; label: string; verses: { key: string; verse: number; text: string }[] };
 export type ExplainOutput = { explanation: string; crossReferences: { reference: string; reason: string }[]; costEur: number };
 
+/** ADR-018: an outline/summary of one finished note, as a proposal next to it. */
+export type OutlineInput = { noteId: string; title: string; noteType: string; text: string };
+export type OutlinePoint = { heading: string; details: string[] };
+export type OutlineOutput = { summary: string; mainThought: string; points: OutlinePoint[]; application: string; costEur: number };
+
 export interface AiProvider {
   /** short name, stored with every job and suggestion */
   readonly name: string;
@@ -46,6 +51,8 @@ export interface AiProvider {
   ask(input: AskInput): Promise<AskOutput>;
   estimateExplainEur(input: ExplainInput): number;
   explain(input: ExplainInput): Promise<ExplainOutput>;
+  estimateOutlineEur(input: OutlineInput): number;
+  outline(input: OutlineInput): Promise<OutlineOutput>;
 }
 
 /** The first sentence of a text (at most 200 characters), taken literally so it can be checked. */
@@ -93,6 +100,18 @@ const fictief: AiProvider = {
       costEur: 0.001,
       explanation: `Testuitleg bij ${input.label} (${input.verses.length} ${input.verses.length === 1 ? "vers" : "verzen"}). Er is niets verstuurd.`,
       crossReferences: [{ reference: "Johannes 1:1", reason: "Testverwijzing." }],
+    };
+  },
+  estimateOutlineEur: () => 0.01,
+  /** Makes no outline of its own: only repeats the first sentence, so the flow can be tested. */
+  async outline(input) {
+    const first = firstSentence(input.text) || "Lege notitie.";
+    return {
+      costEur: 0.001,
+      summary: `Testsamenvatting van “${input.title || "Naamloze notitie"}”. Er is niets verstuurd.`,
+      mainThought: first,
+      points: [{ heading: "Testpunt", details: [first] }],
+      application: "Testtoepassing.",
     };
   },
 };
