@@ -56,6 +56,8 @@ blijft daarom nodig (spec §17).
 
 ## Nog te doen, na keuze van de eigenaar
 
+De eigenaar koos Claude: zie ADR-016.
+
 - Een echte aanbieder kiezen en de API-sleutel als geheim in Vercel zetten. Daarbij: kosten,
   Nederlandse taal, privacy en bewaartermijn testen (ADR-register 002), en een
   verwerkersovereenkomst afsluiten.

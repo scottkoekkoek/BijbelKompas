@@ -1,10 +1,11 @@
 import "server-only";
+import { claudeFromEnv } from "./claude";
 /**
  * BK-039 / spec §8: the AI provider sits behind this adapter so it can be swapped (ADR-012).
- * There is NO real provider yet: the owner first chooses one and agrees that note text may go there.
- * The only implementation is "fictief": local, deterministic, free, and refused in production. It
- * exists so the whole flow (budget, job, suggestions, accept/reject) can be tested without sending
- * anything anywhere.
+ * "claude" (ADR-016) is the real provider: only with AI_PROVIDER=claude and the secret
+ * ANTHROPIC_API_KEY, after the owner agreed that note text may go to Anthropic.
+ * "fictief" is local, deterministic, free, and refused in production. It exists so the whole flow
+ * (budget, job, suggestions, accept/reject) can be tested without sending anything anywhere.
  */
 
 export type Candidate = { noteId: string; title: string; reference: string };
@@ -84,5 +85,6 @@ const fictief: AiProvider = {
 export function configuredProvider(env: Record<string, string | undefined> = process.env): AiProvider | null {
   const choice = env.AI_PROVIDER?.trim().toLowerCase();
   if (choice === "fictief" && env.VERCEL_ENV !== "production") return fictief;
-  return null; // no real provider has been chosen yet
+  if (choice === "claude") return claudeFromEnv(env);
+  return null; // nothing chosen: nothing is sent anywhere
 }
