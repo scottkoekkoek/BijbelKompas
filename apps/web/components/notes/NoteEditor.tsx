@@ -1,4 +1,5 @@
 "use client";
+import { Bold, BookOpen, Heading2, Heading3, Italic, List, ListOrdered, Quote } from "lucide-react";
 import {
   NOTE_TYPE_LABELS,
   NoteType,
@@ -10,13 +11,13 @@ import {
 } from "@bk/schemas";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useSyncState } from "@/components/sync/SyncStatus";
 import { getStored, listOutbox, saveLocal } from "@/lib/offline/db";
 import { editLockName, syncEngine } from "@/lib/offline/engine";
 import type { LocalContent } from "@/lib/offline/types";
-import { readerPath } from "@/lib/bible";
+import { passagePath } from "@/lib/bible";
 import { LINKABLE_TYPES, MAX_PASSAGES_PER_BLOCK, samePassage, type LinkedPassage } from "@/lib/notes/document";
 import { parseReference, type BookInfo } from "@/lib/notes/reference";
 import { noteExtensions } from "./extensions";
@@ -376,7 +377,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
       )}
       <fieldset className="note-meta plain" disabled={elsewhere !== "no"}>
         <div className="field note-title">
-          <label htmlFor={`${ids}-title`}>Titel</label>
+          <label htmlFor={`${ids}-title`} className="visually-hidden">Titel</label>
           <input id={`${ids}-title`} type="text" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="Naamloze notitie" />
         </div>
         <div className="field">
@@ -390,8 +391,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
           </select>
         </div>
         <div className="field">
-          <label htmlFor={`${ids}-date`}>Datum</label>
-          <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+          <label htmlFor={`${ids}-date`}>Datum van preek of gebeurtenis</label>
+          <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} aria-describedby={`${ids}-date-hint`} />
+          <p id={`${ids}-date-hint`} className="hint">Optioneel. Hiermee komt de notitie op de juiste plek in de tijdlijn.</p>
         </div>
       </fieldset>
 
@@ -409,6 +411,7 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         </fieldset>
       )}
 
+      <div className="doc-bar">
       <div className="note-status-row">
         <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
         <span className={`save-state ${saveState}`} role="status" aria-live="polite">
@@ -419,6 +422,29 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
             {revision} {revision === 1 ? "versie" : "versies"}
           </Link>
         )}
+      </div>
+      <div className="note-actions">
+        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })} aria-describedby={`${ids}-save-hint`}>
+          Opslaan als versie
+        </button>
+        {status === "concept" ? (
+          <button type="button" className="button" disabled={locked} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
+            Afronden
+          </button>
+        ) : (
+          <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ status: "concept" })}>
+            Terugzetten naar concept
+          </button>
+        )}
+        {status === "afgerond" && noteType === "preek" && !offline && (
+          <Link className="button" href={`/notes/${note.id}/preek`}>
+            Open preekweergave
+          </Link>
+        )}
+      </div>
+      <p id={`${ids}-save-hint`} className="hint doc-hint">
+        Je tekst wordt vanzelf bewaard. Met “Opslaan als versie” leg je een vast punt vast waar je later naar terug kunt; met “Afronden” markeer je de notitie als klaar.
+      </p>
       </div>
 
       {saveState === "conflict" && (
@@ -447,20 +473,6 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
       <EditorContent editor={editor} className="note-content" />
 
       {message && <p className="copy-status">{message}</p>}
-      <div className="button-row note-actions">
-        <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })}>
-          Opslaan als versie
-        </button>
-        {status === "concept" ? (
-          <button type="button" className="button" disabled={locked} onClick={() => void save({ reason: "afronden", status: "afgerond" })}>
-            Afronden
-          </button>
-        ) : (
-          <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ status: "concept" })}>
-            Terugzetten naar concept
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -488,6 +500,7 @@ function SermonField(props: { id: string; label: string; value: string | null; o
 }
 
 function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books: BookInfo[]; defaultTranslation: string }) {
+  const pathname = usePathname();
   const id = useId();
   const [ref, setRef] = useState("");
   const [error, setError] = useState("");
@@ -505,7 +518,7 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
     }),
   });
 
-  const btn = (label: string, active: boolean, run: () => void, text: string) => (
+  const btn = (label: string, active: boolean, run: () => void, text: React.ReactNode) => (
     <button type="button" className="tool" aria-pressed={active} aria-label={label} title={label} onMouseDown={(e) => e.preventDefault()} onClick={run}>
       {text}
     </button>
@@ -575,15 +588,18 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
   return (
     <div className="toolbar-wrap">
       <div className="toolbar" role="toolbar" aria-label="Opmaak">
-        {btn("Vet", s.bold, () => editor.chain().focus().toggleBold().run(), "B")}
-        {btn("Cursief", s.italic, () => editor.chain().focus().toggleItalic().run(), "I")}
-        {btn("Kop", s.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "H2")}
-        {btn("Subkop", s.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "H3")}
-        {btn("Opsomming", s.bullet, () => editor.chain().focus().toggleBulletList().run(), "•")}
-        {btn("Genummerde lijst", s.ordered, () => editor.chain().focus().toggleOrderedList().run(), "1.")}
-        {btn("Citaat", s.quote, () => editor.chain().focus().toggleBlockquote().run(), "❝")}
+        {btn("Vet", s.bold, () => editor.chain().focus().toggleBold().run(), <Bold size={18} strokeWidth={2.25} aria-hidden="true" />)}
+        {btn("Cursief", s.italic, () => editor.chain().focus().toggleItalic().run(), <Italic size={18} strokeWidth={2.25} aria-hidden="true" />)}
+        <span className="tool-sep" aria-hidden="true" />
+        {btn("Kop", s.h2, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), <Heading2 size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Subkop", s.h3, () => editor.chain().focus().toggleHeading({ level: 3 }).run(), <Heading3 size={19} strokeWidth={2} aria-hidden="true" />)}
+        <span className="tool-sep" aria-hidden="true" />
+        {btn("Opsomming", s.bullet, () => editor.chain().focus().toggleBulletList().run(), <List size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Genummerde lijst", s.ordered, () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={19} strokeWidth={2} aria-hidden="true" />)}
+        {btn("Citaat", s.quote, () => editor.chain().focus().toggleBlockquote().run(), <Quote size={18} strokeWidth={2} aria-hidden="true" />)}
       </div>
       <form className="ref-form" onSubmit={insertReference}>
+        <BookOpen className="ref-form-icon" size={18} strokeWidth={1.75} aria-hidden="true" />
         <label htmlFor={`${id}-ref`} className="visually-hidden">
           Bijbelverwijzing invoegen
         </label>
@@ -615,7 +631,7 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
           <ul>
             {s.passages.map((p) => (
               <li key={`${p.book}${p.startChapter}:${p.startVerse}-${p.endChapter}:${p.endVerse}`} className="passage-chip">
-                <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                <Link href={passagePath(p, pathname)}>{p.label}</Link>
                 <button
                   type="button"
                   aria-label={`Koppeling ${p.label} verwijderen`}

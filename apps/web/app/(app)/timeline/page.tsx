@@ -37,11 +37,37 @@ export default async function TimelinePage({ searchParams }: Props) {
     collection: collections.find((c) => c.id === sp.collectie)?.id,
   };
   const entries = await timeline(supabase, f);
-  const groups = groupByYear(entries);
+  // audit BK-04: only notes with an event date are placed in time; the rest get their own group
+  const groups = groupByYear(entries.filter((e) => e.hasEventDate));
+  const undated = entries.filter((e) => !e.hasEventDate).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const filtered = Object.values(f).some(Boolean);
   const tree = flatten(buildTree(collections));
   const themes = tree.filter((c) => c.collectionType === "thema");
   const others = tree.filter((c) => c.collectionType !== "thema");
+
+  const item = (e: (typeof entries)[number]) => (
+    <li key={e.id}>
+      <p className="timeline-date">
+        {e.hasEventDate ? <time dateTime={e.date}>{day(e.date)}</time> : <span className="muted">Geen datum</span>}
+      </p>
+      <Link href={`/notes/${e.id}`} className="note-list-title">
+        {e.title || "Naamloze notitie"}
+      </Link>
+      <p className="note-list-meta">
+        {NOTE_TYPE_LABELS[e.noteType]}
+        {e.speaker && <> · {e.speaker}</>} ·{" "}
+        <span className={`badge ${e.status}`}>{e.status === "afgerond" ? "Afgerond" : "Concept"}</span>
+      </p>
+      <p className="timeline-written">
+        Geschreven op <time dateTime={e.createdAt}>{short.format(new Date(e.createdAt))}</time>
+        {e.updatedAt.slice(0, 10) !== e.createdAt.slice(0, 10) && (
+          <>
+            , bijgewerkt op <time dateTime={e.updatedAt}>{short.format(new Date(e.updatedAt))}</time>
+          </>
+        )}
+      </p>
+    </li>
+  );
 
   return (
     <>
@@ -137,36 +163,21 @@ export default async function TimelinePage({ searchParams }: Props) {
       {entries.length === 0 ? (
         <p className="placeholder">{filtered ? "Geen notities gevonden met dit filter." : "Je hebt nog geen notities."}</p>
       ) : (
-        groups.map((g) => (
-          <section key={g.year} aria-labelledby={`jaar-${g.year}`} className="timeline-year">
-            <h2 id={`jaar-${g.year}`}>{g.year}</h2>
-            <ol className="timeline">
-              {g.items.map((e) => (
-                <li key={e.id}>
-                  <p className="timeline-date">
-                    {e.hasEventDate ? <time dateTime={e.date}>{day(e.date)}</time> : <span className="muted">Geen datum</span>}
-                  </p>
-                  <Link href={`/notes/${e.id}`} className="note-list-title">
-                    {e.title || "Naamloze notitie"}
-                  </Link>
-                  <p className="note-list-meta">
-                    {NOTE_TYPE_LABELS[e.noteType]}
-                    {e.speaker && <> · {e.speaker}</>} ·{" "}
-                    <span className={`badge ${e.status}`}>{e.status === "afgerond" ? "Afgerond" : "Concept"}</span>
-                  </p>
-                  <p className="timeline-written">
-                    Geschreven op <time dateTime={e.createdAt}>{short.format(new Date(e.createdAt))}</time>
-                    {e.updatedAt.slice(0, 10) !== e.createdAt.slice(0, 10) && (
-                      <>
-                        , bijgewerkt op <time dateTime={e.updatedAt}>{short.format(new Date(e.updatedAt))}</time>
-                      </>
-                    )}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))
+        <>
+          {groups.map((g) => (
+            <section key={g.year} aria-labelledby={`jaar-${g.year}`} className="timeline-year">
+              <h2 id={`jaar-${g.year}`}>{g.year}</h2>
+              <ol className="timeline">{g.items.map(item)}</ol>
+            </section>
+          ))}
+          {undated.length > 0 && (
+            <section aria-labelledby="zonder-datum" className="timeline-year">
+              <h2 id="zonder-datum">Zonder datum</h2>
+              <p className="muted">Notities zonder datum van preek of gebeurtenis, de laatst geschreven eerst. Vul de datum in bij de notitie om hem op de tijdlijn te zetten.</p>
+              <ol className="timeline">{undated.map(item)}</ol>
+            </section>
+          )}
+        </>
       )}
     </>
   );

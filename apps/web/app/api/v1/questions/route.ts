@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   try {
     return json(await createQuestion(auth.supabase, body.data), requestId, 201);
   } catch (err) {
+    if ((err as { code?: string }).code === "22023") return errorResponse("INVALID_INPUT", "Dit Bijbelgedeelte bestaat niet in deze vertaling.", requestId);
     logError(requestId, "POST /questions", err as { code?: string });
     return errorResponse("INTERNAL", "De vraag kon niet worden bewaard.", requestId);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterBooks, formatReference, neighbours, nextSelection, readerPath } from "./bible";
+import { filterBooks, formatReference, isBackPath, neighbours, nextSelection, parseVerseTarget, passagePath, readerPath } from "./bible";
 
 const books = [
   { code: "GEN", name: "Genesis", chapterCount: 50 },
@@ -49,4 +49,28 @@ describe("filterBooks", () => {
 it("builds reader paths", () => {
   expect(readerPath("JHN", 3)).toBe("/bible/JHN/3");
   expect(readerPath("JHN", 3, "SV")).toBe("/bible/JHN/3?v=SV");
+});
+
+it("passage links open the exact verse or range (audit BK-01)", () => {
+  const id = "0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21";
+  expect(passagePath({ book: "GEN", startChapter: 1, startVerse: 1, endChapter: 1, endVerse: 1, translation: "SV" })).toBe("/bible/GEN/1?v=SV&vers=1#v1");
+  expect(passagePath({ book: "JHN", startChapter: 3, startVerse: 16, endChapter: 3, endVerse: 18, translation: "SV" }, `/notes/${id}`)).toBe(
+    `/bible/JHN/3?v=SV&vers=16-18&terug=${encodeURIComponent(`/notes/${id}`)}#v16`,
+  );
+  expect(passagePath({ book: "JHN", startChapter: 3, startVerse: 35, endChapter: 4, endVerse: 2 })).toBe("/bible/JHN/3?vers=35-999#v35");
+  expect(passagePath({ book: "PSA", startChapter: 23, startVerse: 1, endChapter: 23, endVerse: 999, translation: "SV" })).toBe("/bible/PSA/23?v=SV");
+  expect(passagePath({ book: "PSA", startChapter: 23, startVerse: 1, endChapter: 23, endVerse: 999 }, "https://example.test")).toBe("/bible/PSA/23");
+});
+
+it("the reader only accepts a sane verse target and a note as the way back", () => {
+  expect(parseVerseTarget("16-18")).toEqual({ from: 16, to: 18 });
+  expect(parseVerseTarget("7")).toEqual({ from: 7, to: 7 });
+  expect(parseVerseTarget("18-16")).toBeNull();
+  expect(parseVerseTarget("0")).toBeNull();
+  expect(parseVerseTarget("x")).toBeNull();
+  expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21")).toBe(true);
+  expect(isBackPath("//evil.test/notes/x")).toBe(false);
+  expect(isBackPath("/settings")).toBe(false);
+  expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21/preek")).toBe(true);
+  expect(isBackPath("/notes/0b7c8a3e-1d2f-4c5b-9a8e-7f6d5c4b3a21/versies")).toBe(false);
 });

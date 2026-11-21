@@ -1,25 +1,25 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { readerPath } from "@/lib/bible";
+import { passagePath, type PassageTarget } from "@/lib/bible";
 import { Fragment } from "react";
 import { passagesOf, type PMNode } from "@/lib/notes/document";
 
 /** Read-only rendering of a note document (versions). Builds React elements, never raw HTML. */
-export function DocumentView({ doc }: { doc: { content?: unknown[] } }) {
+export function DocumentView({ doc, back, className = "note-body readonly" }: { doc: { content?: unknown[] }; back?: string; className?: string }) {
   return (
-    <div className="note-body readonly">
+    <div className={className}>
       {((doc.content ?? []) as PMNode[]).map((n, i) => {
         const passages = passagesOf(n);
-        if (passages.length === 0) return render(n, i);
+        if (passages.length === 0) return render(n, i, back);
         return (
           <Fragment key={i}>
-            {render(n, i)}
+            {render(n, i, back)}
             <p className="block-passages">
               Gekoppeld aan:{" "}
               {passages.map((p, j) => (
                 <Fragment key={j}>
                   {j > 0 && "; "}
-                  <Link href={readerPath(p.book, p.startChapter, p.translation)}>{p.label}</Link>
+                  <Link href={passagePath(p, back)}>{p.label}</Link>
                 </Fragment>
               ))}
             </p>
@@ -45,7 +45,7 @@ function children(node: PMNode) {
   return (node.content ?? []).map((c, i) => render(c, i));
 }
 
-function render(node: PMNode, key: number): ReactNode {
+function render(node: PMNode, key: number, back?: string): ReactNode {
   switch (node.type) {
     case "text":
       return marks(node, key);
@@ -66,13 +66,13 @@ function render(node: PMNode, key: number): ReactNode {
     case "horizontalRule":
       return <hr key={key} />;
     case "bibleReference": {
-      const a = node.attrs as { label: string; translation: string; book: string; startChapter: number };
+      const a = node.attrs as PassageTarget & { label: string; translation: string };
       return (
         <div key={key} className="ref-block">
           <span className="ref-label">{a.label}</span>
           <span className="ref-translation">{a.translation}</span>
           <span className="ref-actions">
-            <Link href={readerPath(a.book, a.startChapter, a.translation)}>Lees</Link>
+            <Link href={passagePath(a, back)} aria-label={`${a.label} lezen`}>Lees</Link>
           </span>
         </div>
       );

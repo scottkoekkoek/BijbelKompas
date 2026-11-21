@@ -144,7 +144,7 @@ test("from the reader: put verses in a new note and see it in the chapter", asyn
   await page.getByLabel("Titel").fill(title);
   await expect(saveState(page)).toHaveText("Opgeslagen");
 
-  await body(page).locator(".ref-block").getByRole("link", { name: "Lees" }).click();
+  await body(page).locator(".ref-block").getByRole("link", { name: "Genesis 2:2 lezen" }).click();
   await expect(page).toHaveURL(/\/bible\/GEN\/2/);
   const notes = page.getByRole("region", { name: "Notities bij dit hoofdstuk" });
   await expect(notes.getByRole("link", { name: title })).toBeVisible();

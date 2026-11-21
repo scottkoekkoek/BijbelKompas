@@ -14,7 +14,8 @@ const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long"
 export default async function QuestionsPage({ searchParams }: Props) {
   const status = QuestionStatus.safeParse((await searchParams).status).data;
   const supabase = await createClient();
-  const questions = await listQuestions(supabase, status);
+  // "Lopend" is what still needs work: open and in research. Answered and archived have their own tab.
+  const questions = await listQuestions(supabase, status ?? "lopend");
   const tabs: { href: string; label: string; current: boolean }[] = [
     { href: "/questions", label: "Lopend", current: !status },
     ...QuestionStatus.options.map((s) => ({ href: `/questions?status=${s}`, label: QUESTION_STATUS_LABELS[s], current: status === s })),

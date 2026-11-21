@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { canonicalJson, deriveIndexes, emptyDocument, referenceBlock, validateDocument } from "./document";
-import { findBook, parseReference } from "./reference";
+import { findBook, parseReference, referenceInSearch } from "./reference";
 
 const books = [
   { code: "PSA", name: "Psalmen", chapterCount: 150 },
@@ -102,5 +102,22 @@ describe("verse links on text blocks (BK-030)", () => {
     expect(bad(Array.from({ length: 11 }, (_, i) => g(i + 1)))).toContain("Blok 1: hoogstens 10 koppelingen per blok");
     expect(bad([g(1)], "horizontalRule")).toContain("Blok 1: dit bloktype kan niet aan verzen gekoppeld worden");
     expect(bad(null)).toEqual([]);
+  });
+});
+
+describe("references in search (audit BK-02)", () => {
+  it("turns a valid reference into a passage, also with a long dash", () => {
+    expect(referenceInSearch("Joh 3:16", books)).toMatchObject({ refs: [{ book: { code: "JHN" }, startVerse: 16, endVerse: 16 }] });
+    expect(referenceInSearch("Johannes 3:16\u201318", books)).toMatchObject({ refs: [{ label: "Johannes 3:16-18" }] });
+    expect(referenceInSearch("1 Joh 2:1", books)).toMatchObject({ refs: [{ book: { code: "1JN" } }] });
+  });
+  it("offers a choice when the book name is ambiguous", () => {
+    const r = referenceInSearch("Jo 2:1", books) as { refs: { book: { code: string } }[] };
+    expect(r.refs.map((x) => x.book.code)).toEqual(["JHN", "JOL"]);
+  });
+  it("explains impossible numbers, and leaves plain words to the word search", () => {
+    expect(referenceInSearch("Joh 30:1", books)).toEqual({ error: "Johannes heeft 21 hoofdstukken." });
+    expect(referenceInSearch("licht", books)).toBeNull();
+    expect(referenceInSearch("woord 42", books)).toBeNull();
   });
 });
