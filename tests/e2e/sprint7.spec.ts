@@ -1,7 +1,7 @@
 // Sprint 7: collections, research questions and the timeline (BK-047..BK-053). Fictitious user and TEST text only.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { login, newDevice } from "./fixtures";
+import { login, newDevice, openNoteDetails } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const saveState = (page: Page) => page.locator(".save-state");
@@ -27,6 +27,7 @@ async function newCollection(page: Page, name: string, type = "Dossier") {
   await page.goto("/collections");
   await page.getByText("Nieuwe collectie", { exact: true }).click();
   await page.getByLabel("Naam").fill(name);
+  await openNoteDetails(page);
   await page.getByLabel("Soort").selectOption({ label: type });
   await page.getByRole("button", { name: "Collectie maken" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();

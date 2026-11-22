@@ -52,6 +52,15 @@ export default async function SearchPage({ searchParams }: Props) {
       ])
     : [[], { total: 0, hits: [] }];
   const filtered = Object.entries(filters).some(([, v]) => v);
+  const activeFilters = [
+    filters.type && NOTE_TYPE_LABELS[filters.type],
+    filters.status && (filters.status === "afgerond" ? "Afgerond" : "Concept"),
+    filters.from && `Vanaf ${dateFmt.format(new Date(filters.from))}`,
+    filters.to && `Tot en met ${dateFmt.format(new Date(filters.to))}`,
+    filters.book && books.find((b) => b.code === filters.book)?.name,
+    filters.speaker && `Spreker: ${filters.speaker}`,
+    filters.archived && "In het archief",
+  ].filter((x): x is string => !!x);
 
   // audit BK-02: "Joh 3:16" is a place in the Bible, shown above the word results
   const asRef = searching ? referenceInSearch(q, books) : null;
@@ -84,7 +93,9 @@ export default async function SearchPage({ searchParams }: Props) {
           </button>
         </div>
         <details className="search-filters" open={filtered}>
-          <summary>Filters voor notities{filtered ? " (actief)" : ""}</summary>
+          <summary>
+            Filters voor notities{filtered ? ` (${activeFilters.length} actief)` : ""}
+          </summary>
           <div className="filters">
             <div className="field">
               <label htmlFor="type">Soort</label>
@@ -140,6 +151,21 @@ export default async function SearchPage({ searchParams }: Props) {
         </details>
       </form>
 
+      {activeFilters.length > 0 && (
+        <ul className="active-filters" aria-label="Actieve filters">
+          {activeFilters.map((f) => (
+            <li key={f} className="filter-chip">
+              {f}
+            </li>
+          ))}
+          <li>
+            <Link className="filter-clear" href={`/search?q=${encodeURIComponent(q)}`}>
+              Filters wissen
+            </Link>
+          </li>
+        </ul>
+      )}
+
       {asRef && "error" in asRef && (
         <p className="alert info" role="status">
           {asRef.error} Hieronder staan de gewone zoekresultaten.
@@ -164,7 +190,7 @@ export default async function SearchPage({ searchParams }: Props) {
       {passage && translation && (
         <section className="passage-hit card" aria-labelledby="passage-title">
           <h2 id="passage-title">
-            {passage.ref.label} <span className="muted">({translation.name})</span>
+            <span className="nowrap">{passage.ref.label}</span> <span className="muted passage-translation">({translation.name})</span>
           </h2>
           {passage.exists ? (
             <p className="passage-text">
@@ -229,72 +255,76 @@ export default async function SearchPage({ searchParams }: Props) {
         </section>
       )}
 
-      {provider && <AskNotes initialQuestion={q} provider={{ name: provider.name, external: provider.external }} />}
-
       {!searching ? (
         <p className="placeholder">Typ minstens twee letters. Je zoekt in titels en tekst van je notities en in de Bijbeltekst. Een verwijzing zoals “Joh 3:16” brengt je direct naar die verzen.</p>
       ) : (
-        <>
-          <section aria-labelledby="note-results">
-            <h2 id="note-results">
-              Notities <span className="count">({notes.length === 50 ? "50+" : notes.length})</span>
-            </h2>
-            {notes.length === 0 ? (
-              <p className="placeholder">Geen notities gevonden{filtered ? " met deze filters" : ""}.</p>
-            ) : (
-              <ul className="note-list search-results">
-                {notes.map((n) => (
-                  <li key={n.noteId}>
-                    <Link href={`/notes/${n.noteId}${n.blockId ? `#blok-${n.blockId}` : ""}`}>
-                      <span className="note-list-title">{n.title || "Naamloze notitie"}</span>
-                      {n.snippet && (
-                        <span className="snippet">
-                          <Highlight text={n.snippet} />
-                        </span>
-                      )}
-                      <span className="note-list-meta">
-                        {NOTE_TYPE_LABELS[n.noteType]} · {n.status === "afgerond" ? "Afgerond" : "Concept"}
-                        {n.eventDate && <> · {dateFmt.format(new Date(n.eventDate))}</>}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {translation && (
-            <section aria-labelledby="bible-results">
-              <h2 id="bible-results">
-                Bijbel ({translation.name}) <span className="count">({bible.total})</span>
+        <div className="word-results">
+          {/* A recognised passage is the answer: word hits are extra, and empty groups stay out of the way. */}
+          {passage && (notes.length > 0 || bible.hits.length > 0) && <h2 className="word-results-title">Ook gevonden als zoekwoord</h2>}
+          {(notes.length > 0 || (!passage && (filtered || bible.hits.length === 0))) && (
+            <section aria-labelledby="note-results">
+              <h2 id="note-results" className={passage ? "word-group-title" : undefined}>
+                Notities <span className="count">({notes.length === 50 ? "50+" : notes.length})</span>
               </h2>
-              {bible.hits.length === 0 ? (
-                <p className="placeholder">Niets gevonden in de Bijbeltekst.</p>
+              {notes.length === 0 ? (
+                <p className="placeholder">
+                  {filtered ? "Geen notities gevonden met deze filters." : `Niets gevonden voor “${q}” in je notities${translation ? " en de Bijbel" : ""}.`}
+                </p>
               ) : (
-                <>
-                  <ul className="verse-results">
-                    {bible.hits.map((h) => (
-                      <li key={`${h.bookCode}.${h.chapter}.${h.verse}`}>
-                        <Link href={`${readerPath(h.bookCode, h.chapter, translation.code)}#v${h.verse}`}>
-                          {h.bookName} {h.chapter}:{h.verse}
-                        </Link>{" "}
-                        <span className="verse-snippet">
-                          <Highlight text={h.snippet} />
+                <ul className="note-list search-results">
+                  {notes.map((n) => (
+                    <li key={n.noteId}>
+                      <Link href={`/notes/${n.noteId}${n.blockId ? `#blok-${n.blockId}` : ""}`}>
+                        <span className="note-list-title">{n.title || "Naamloze notitie"}</span>
+                        {n.snippet && (
+                          <span className="snippet">
+                            <Highlight text={n.snippet} />
+                          </span>
+                        )}
+                        <span className="note-list-meta">
+                          {NOTE_TYPE_LABELS[n.noteType]} · {n.status === "afgerond" ? "Afgerond" : "Concept"}
+                          {n.eventDate && <> · {dateFmt.format(new Date(n.eventDate))}</>}
                         </span>
-                      </li>
-                    ))}
-                  </ul>
-                  {bible.total > bible.hits.length && (
-                    <p className="muted">
-                      De eerste {bible.hits.length} van {bible.total} verzen worden getoond. Voeg een woord toe om verder te zoeken.
-                    </p>
-                  )}
-                </>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           )}
-        </>
+
+          {translation && bible.hits.length > 0 && (
+            <section aria-labelledby="bible-results">
+              <h2 id="bible-results" className={passage ? "word-group-title" : undefined}>
+                Bijbel ({translation.name}) <span className="count">({bible.total})</span>
+              </h2>
+              <ul className="verse-results">
+                {bible.hits.map((h) => (
+                  <li key={`${h.bookCode}.${h.chapter}.${h.verse}`}>
+                    <Link href={`${readerPath(h.bookCode, h.chapter, translation.code)}#v${h.verse}`}>
+                      {h.bookName} {h.chapter}:{h.verse}
+                    </Link>{" "}
+                    <span className="verse-snippet">
+                      <Highlight text={h.snippet} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {bible.total > bible.hits.length && (
+                <p className="muted">
+                  De eerste {bible.hits.length} van {bible.total} verzen worden getoond. Voeg een woord toe om verder te zoeken.
+                </p>
+              )}
+            </section>
+          )}
+          {translation && bible.hits.length === 0 && notes.length > 0 && !passage && (
+            <p className="muted word-group-empty">Niets gevonden in de Bijbeltekst ({translation.name}).</p>
+          )}
+        </div>
       )}
+
+      {/* BK-042: a separate, compact AI action, visually apart from the word results */}
+      {provider && <AskNotes initialQuestion={passage ? "" : q} provider={{ name: provider.name, external: provider.external }} />}
     </>
   );
 }

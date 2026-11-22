@@ -1598,3 +1598,55 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   .selection-bar .selection-actions.tool-actions { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; gap: var(--space-1); }
   .selection-bar .selection-actions.tool-actions .button { min-height: 40px; padding: 0 var(--space-2); }
 }
+
+/* =====================================================================
+   Ronde 3 (pilot): shared patterns and per-screen refinements
+   ===================================================================== */
+
+/* ---- search: passage first, word hits second, AI apart ---- */
+.active-filters { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; margin: 0 0 var(--space-4); align-items: center; }
+.filter-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border-radius: var(--radius-full); background: var(--primary-soft); color: var(--primary); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.filter-clear { font-size: var(--text-sm); display: inline-flex; align-items: center; min-height: 32px; padding: 4px 8px; }
+.word-results-title { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-family: var(--font-ui); margin: var(--space-6) 0 var(--space-2); }
+.word-group-title { font-size: var(--text-lg); }
+.word-group-empty { margin-top: var(--space-4); }
+.word-results + .ask-notes { margin-top: var(--space-8); border-style: dashed; }
+.ask-notes h2 { font-size: var(--text-lg); margin-top: 0; }
+@media (max-width: 767px) {
+  .ask-notes { padding: var(--space-4); }
+}
+.nowrap { white-space: nowrap; }
+.search-form { margin-bottom: var(--space-5); }
+.passage-hit .passage-translation { font-size: var(--text-base); font-family: var(--font-ui); font-weight: var(--weight-regular); }
+
+/* ---- Bible reader: verse number stays with its first word; grouped copy actions ---- */
+.verse-start { white-space: nowrap; }
+.copy-menu { position: relative; display: inline-block; }
+.copy-menu > summary { list-style: none; cursor: pointer; }
+.copy-menu > summary::-webkit-details-marker { display: none; }
+.copy-menu > summary::after { content: ""; width: 6px; height: 6px; margin-left: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); }
+.copy-menu[open] > summary { background: var(--surface-2); }
+.copy-menu-items { display: flex; flex-wrap: wrap; gap: var(--space-1); padding-top: var(--space-1); }
+.selection-bar .verse-notes > .button { margin-top: var(--space-1); }
+.selection-bar .selection-ref { display: flex; align-items: baseline; gap: var(--space-2); }
+
+/* ---- note editor: status by the title, rarely used fields folded on a phone ---- */
+.note-head { margin-bottom: var(--space-2); align-items: center; }
+.note-head .note-status-row { flex: 1 1 100%; min-height: 32px; }
+.note-details { margin: 0 0 var(--space-2); border-top: 1px solid var(--border); }
+.note-details + .doc-bar, .note-details[open] + .doc-bar { border-top: 0; }
+.note-details > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-1) 0; font-size: var(--text-sm); }
+.note-details > summary::-webkit-details-marker { display: none; }
+.note-details > summary::after { content: ""; width: 7px; height: 7px; margin-left: auto; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); transition: transform var(--duration) var(--ease); }
+.note-details[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.note-details-label { font-weight: var(--weight-semibold); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--text-xs); }
+.note-details-value { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-details[open] .note-details-value { visibility: hidden; }
+.note-details .note-fields { margin-bottom: var(--space-3); }
+.note-actions .button:not(.secondary):not(.ghost) { box-shadow: var(--shadow-sm); }
+@media (max-width: 767px) {
+  .doc-bar .doc-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .note-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); width: 100%; }
+  .note-actions .button { justify-content: center; }
+}
+.note-details .note-fields { align-items: flex-start; }

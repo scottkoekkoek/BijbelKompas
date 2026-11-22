@@ -2,7 +2,7 @@
 // Bible references in search (BK-02), clearer dates and versions (BK-03), timeline and
 // question counts (BK-04). Fictitious user and TEST text only.
 import { expect, test, type Page } from "@playwright/test";
-import { login } from "./fixtures";
+import { login, openNoteDetails } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const saveState = (page: Page) => page.locator(".save-state");
@@ -57,6 +57,7 @@ test("the timeline puts notes without a date in their own group, and counts matc
   await login(page, "/notes/new");
   await page.getByRole("button", { name: "Lege notitie" }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
+  await openNoteDetails(page);
   await expect(page.getByLabel("Datum van preek of gebeurtenis")).toBeVisible();
   const title = unique("Zonder datum");
   await page.getByLabel("Titel").fill(title);
