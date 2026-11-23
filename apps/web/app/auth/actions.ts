@@ -2,6 +2,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { NewPassword } from "@/lib/password";
 import { safeNext } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,18 +52,6 @@ export async function requestPasswordReset(_prev: FormState, formData: FormData)
   });
   return { ok: "Als dit adres bij ons bekend is, ontvang je een e-mail met een link om een nieuw wachtwoord in te stellen." };
 }
-
-const NewPassword = z
-  .object({
-    password: z
-      .string()
-      .min(12, { message: "Gebruik minstens 12 tekens." })
-      .regex(/[a-z]/, { message: "Gebruik minstens één kleine letter." })
-      .regex(/[A-Z]/, { message: "Gebruik minstens één hoofdletter." })
-      .regex(/[0-9]/, { message: "Gebruik minstens één cijfer." }),
-    confirm: z.string(),
-  })
-  .refine((v) => v.password === v.confirm, { message: "De wachtwoorden zijn niet gelijk.", path: ["confirm"] });
 
 export async function setNewPassword(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = NewPassword.safeParse({ password: formData.get("password"), confirm: formData.get("confirm") });

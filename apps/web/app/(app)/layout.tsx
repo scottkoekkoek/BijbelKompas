@@ -10,17 +10,18 @@ import { createClient } from "@/lib/supabase/server";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login");
+  // the cookie can outlive the session (access closed): clear it instead of looping via /login
+  if (!data.user) redirect("/auth/einde");
 
-  const { data: prefs } = await supabase
-    .from("user_preferences")
-    .select("theme, bible_font_size")
-    .eq("user_id", data.user.id)
-    .maybeSingle();
+  const [{ data: prefs }, { data: admin }] = await Promise.all([
+    supabase.from("user_preferences").select("theme, bible_font_size").eq("user_id", data.user.id).maybeSingle(),
+    // pilot: only an administrator sees "Beheer" (and RLS lets you see only your own row)
+    supabase.from("app_admins").select("user_id").eq("user_id", data.user.id).maybeSingle(),
+  ]);
 
   return (
     <>
-      <SyncStarter />
+      <SyncStarter userId={data.user.id} />
       <ThemeSync theme={prefs?.theme ?? "system"} bibleFontSize={prefs?.bible_font_size ?? 18} />
       <a href="#inhoud" className="skip-link">Naar de inhoud</a>
       <div className="shell">
@@ -29,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <BrandMark />
             <span className="brand-text">BijbelKompas</span>
           </Link>
-          <SidebarNav />
+          <SidebarNav admin={Boolean(admin)} />
           <div className="sidebar-footer">
             <SyncIndicator />
             <LogoutButton />

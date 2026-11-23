@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { syncLabel, useSyncState } from "@/components/sync/SyncStatus";
-import { listConflicts, listOutbox, listStored, storageEstimate } from "@/lib/offline/db";
+import { listConflicts, listOutbox, listStored, storageEstimate, storeOfOtherAccount } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
 import type { ConflictRecord, OutboxEntry } from "@/lib/offline/types";
 
@@ -25,9 +25,15 @@ export function SyncOverview() {
   const [data, setData] = useState<Data | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [persistMsg, setPersistMsg] = useState("");
+  const [otherAccount, setOtherAccount] = useState(false);
 
   const load = useCallback(async () => {
     try {
+      // pilot: another account's unsent text on this browser is never shown here
+      if (await storeOfOtherAccount()) {
+        setOtherAccount(true);
+        return;
+      }
       const [outbox, conflicts, stored, storage] = await Promise.all([listOutbox(), listConflicts(), listStored(), storageEstimate()]);
       const titles: Record<string, string> = {};
       for (const s of stored) titles[s.id] = (s.local ?? s.server)?.title || "Naamloze notitie";
@@ -48,6 +54,14 @@ export function SyncOverview() {
 
   if (unavailable) {
     return <p className="alert error">Deze browser kan niets lokaal bewaren (bijvoorbeeld in een privévenster). Offline schrijven werkt hier niet; online werkt alles gewoon.</p>;
+  }
+  if (otherAccount) {
+    return (
+      <p className="alert info">
+        Op deze browser staan nog niet verstuurde wijzigingen van een ander account. Ze blijven bewaard en worden verstuurd zodra dat account
+        hier weer inlogt. Jouw eigen wijzigingen gaan zolang direct naar de server, dus offline schrijven werkt hier even niet.
+      </p>
+    );
   }
   if (!data) return <p role="status">Laden…</p>;
 

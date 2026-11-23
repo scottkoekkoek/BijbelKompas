@@ -6,6 +6,7 @@
  */
 import Link from "next/link";
 import { useEffect, useSyncExternalStore } from "react";
+import { claimForAccount } from "@/lib/offline/db";
 import { syncEngine, type SyncState } from "@/lib/offline/engine";
 
 const INITIAL: SyncState = { status: "idle", pending: 0, conflicts: 0, rejected: 0, lastSyncAt: null };
@@ -28,9 +29,11 @@ export function syncLabel(s: SyncState): { text: string; tone: "ok" | "busy" | "
 }
 
 /** Mount once per page (in the app layout and on the offline page). */
-export function SyncStarter() {
+export function SyncStarter({ userId }: { userId?: string }) {
   useEffect(() => {
-    syncEngine.start();
+    // pilot: this browser's offline copy belongs to one account (see claimForAccount)
+    if (userId) void claimForAccount(userId).catch(() => undefined).finally(() => syncEngine.start());
+    else syncEngine.start();
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
@@ -41,7 +44,7 @@ export function SyncStarter() {
         })
         .catch(() => undefined);
     }
-  }, []);
+  }, [userId]);
   return null;
 }
 

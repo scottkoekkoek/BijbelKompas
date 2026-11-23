@@ -9,7 +9,7 @@ import { BrandMark } from "@/components/icons";
 import { NoteEditor } from "@/components/notes/NoteEditor";
 import { SyncIndicator, SyncStarter } from "@/components/sync/SyncStatus";
 import { emptyDocument } from "@/lib/notes/document";
-import { getMeta, listOutbox, listStored, saveLocal, type BookInfo, type OfflineTranslation } from "@/lib/offline/db";
+import { getMeta, listOutbox, listStored, saveLocal, storeOfOtherAccount, type BookInfo, type OfflineTranslation } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
 import type { OutboxEntry, StoredNote } from "@/lib/offline/types";
 import { noteFromStored } from "@/lib/offline/view";
@@ -34,6 +34,11 @@ export function OfflineApp() {
 
   const load = useCallback(async () => {
     try {
+      // pilot: the copy of another account on this browser stays out of sight
+      if (await storeOfOtherAccount()) {
+        setState({ items: [], books: [], translation: "SV", bible: {} });
+        return;
+      }
       const [stored, outbox, meta] = await Promise.all([listStored(), listOutbox(), getMeta()]);
       const byId = new Map(outbox.map((e) => [e.noteId, e]));
       const items = stored
