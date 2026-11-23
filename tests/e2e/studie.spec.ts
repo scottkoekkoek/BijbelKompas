@@ -31,7 +31,7 @@ test("from a verse: my study, a question, and search by passage (features 1, 3, 
 
   // 1: verse 2 finds the note on 1-2 (partial overlap) once, and not the one on verse 3
   await select(page, 2);
-  await selectionBar(page).getByRole("button", { name: "Mijn studie" }).click();
+  await selectionBar(page).getByRole("button", { name: "Mijn studie", exact: true }).click();
   const study = page.getByRole("dialog", { name: "Mijn studie bij Genesis 1:2" });
   await expect(study.getByRole("link", { name: new RegExp(overlapping) })).toHaveCount(1);
   await expect(study).not.toContainText(other);
@@ -59,7 +59,7 @@ test("from a verse: my study, a question, and search by passage (features 1, 3, 
   await ask.getByRole("button", { name: "Verder lezen" }).click();
   await expect(selectionBar(page)).toContainText("Genesis 1:2");
 
-  await selectionBar(page).getByRole("button", { name: "Mijn studie" }).click();
+  await selectionBar(page).getByRole("button", { name: "Mijn studie", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("link", { name: new RegExp(question) })).toContainText("Open · Genesis 1:2");
   await page.keyboard.press("Escape");
 

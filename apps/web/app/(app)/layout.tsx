@@ -9,9 +9,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  // the cookie can outlive the session (access closed): clear it instead of looping via /login
-  if (!data.user) redirect("/auth/einde");
+  const { data, error } = await supabase.auth.getUser();
+  // the cookie can outlive the session (access closed): clear it instead of looping via /login.
+  // A passing hiccup (auth server busy or unreachable) never signs anyone out.
+  if (!data.user) {
+    const e = error as { status?: number; name?: string } | null;
+    const passing = e?.name === "AuthRetryableFetchError" || e?.status === 429 || (e?.status ?? 0) >= 500;
+    redirect(passing ? "/login" : "/auth/einde");
+  }
 
   const [{ data: prefs }, { data: admin }] = await Promise.all([
     supabase.from("user_preferences").select("theme, bible_font_size").eq("user_id", data.user.id).maybeSingle(),

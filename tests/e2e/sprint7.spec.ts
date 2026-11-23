@@ -18,7 +18,10 @@ async function newNote(page: Page, title: string, date?: string) {
   await page.getByRole("button", { name: "Lege notitie" }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await page.getByLabel("Titel").fill(title);
-  if (date) await page.getByLabel("Datum").fill(date);
+  if (date) {
+    await openNoteDetails(page);
+    await page.getByLabel("Datum").fill(date);
+  }
   await expect(saveState(page)).toHaveText("Opgeslagen");
   return page.url().split("/").pop()!;
 }
@@ -27,7 +30,6 @@ async function newCollection(page: Page, name: string, type = "Dossier") {
   await page.goto("/collections");
   await page.getByText("Nieuwe collectie", { exact: true }).click();
   await page.getByLabel("Naam").fill(name);
-  await openNoteDetails(page);
   await page.getByLabel("Soort").selectOption({ label: type });
   await page.getByRole("button", { name: "Collectie maken" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
