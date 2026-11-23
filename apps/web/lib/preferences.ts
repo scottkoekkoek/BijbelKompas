@@ -4,6 +4,7 @@ import type { Preferences, PreferencesPatch } from "@bk/schemas";
 export type PreferencesRow = {
   default_translation_id: string | null;
   ai_enabled: boolean;
+  ai_model: string | null;
   auto_analysis: boolean;
   theme: Preferences["theme"];
   bible_font_size: number;
@@ -13,12 +14,13 @@ export type PreferencesRow = {
 };
 
 export const PREFERENCE_COLUMNS =
-  "default_translation_id, ai_enabled, auto_analysis, theme, bible_font_size, offline_recent_limit, editor_preferences, updated_at";
+  "default_translation_id, ai_enabled, ai_model, auto_analysis, theme, bible_font_size, offline_recent_limit, editor_preferences, updated_at";
 
 export function fromRow(row: PreferencesRow): Preferences {
   return {
     defaultTranslationId: row.default_translation_id,
     aiEnabled: row.ai_enabled,
+    aiModel: row.ai_model ?? null,
     autoAnalysis: row.auto_analysis,
     theme: row.theme,
     bibleFontSize: row.bible_font_size,
@@ -31,6 +33,7 @@ export function fromRow(row: PreferencesRow): Preferences {
 const COLUMN: Record<keyof PreferencesPatch, keyof PreferencesRow> = {
   defaultTranslationId: "default_translation_id",
   aiEnabled: "ai_enabled",
+  aiModel: "ai_model",
   autoAnalysis: "auto_analysis",
   theme: "theme",
   bibleFontSize: "bible_font_size",

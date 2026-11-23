@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { filterBooks } from "@/lib/bible";
 import { bookProgressText } from "@/lib/reader/progress-status";
 
-/** BK-009: all 66 books, split in Old and New Testament, with a quick filter. */
+/** BK-009: all 66 books, split in Old and New Testament, with a quick filter and the chapters read per book. */
 export function BookPicker({ books, progress = {} }: { books: BibleBook[]; progress?: Record<string, { read: number; started: number }> }) {
   const [query, setQuery] = useState("");
   const id = useId();
@@ -15,23 +15,8 @@ export function BookPicker({ books, progress = {} }: { books: BibleBook[]; progr
     { key: "NT", title: "Nieuwe Testament", list: shown.filter((b) => b.testament === "NT") },
   ];
 
-  // feature 6: the books the owner started reading, with the chapters read completely
-  const started = books.filter((b) => progress[b.code]);
-
   return (
     <>
-      {started.length > 0 && (
-        <section className="book-section reading-overview" aria-labelledby={`${id}-progress`}>
-          <h2 id={`${id}-progress`}>Mijn leesvoortgang</h2>
-          <ul className="progress-list">
-            {started.map((b) => (
-              <li key={b.code}>
-                <Link href={`/bible/${b.code}`}>{bookProgressText(b.name, progress[b.code]!.read, b.chapterCount)}</Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       <div className="field book-filter">
         <label htmlFor={id}>Zoek een boek</label>
         <input
@@ -53,13 +38,16 @@ export function BookPicker({ books, progress = {} }: { books: BibleBook[]; progr
               <ul className="book-list">
                 {g.list.map((b) => (
                   <li key={b.code}>
-                    <Link href={`/bible/${b.code}`}>
-                      {b.name}
-                      {progress[b.code] && (
-                        <span className="book-list-progress">
-                          {progress[b.code]!.read} van {b.chapterCount} gelezen
-                        </span>
-                      )}
+                    {/* Ronde 3: progress right at every book, the same count as on the book page */}
+                    <Link
+                      href={`/bible/${b.code}`}
+                      aria-label={bookProgressText(b.name, progress[b.code]?.read ?? 0, b.chapterCount)}
+                      className={progress[b.code] ? "started" : undefined}
+                    >
+                      <span className="book-list-name">{b.name}</span>
+                      <span className="book-list-progress" aria-hidden="true">
+                        {progress[b.code]?.read ?? 0}/{b.chapterCount}
+                      </span>
                     </Link>
                   </li>
                 ))}

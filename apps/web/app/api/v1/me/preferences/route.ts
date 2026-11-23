@@ -1,6 +1,7 @@
 // PATCH /api/v1/me/preferences (BK-005)
 import { PreferencesPatch } from "@bk/schemas";
 import { z } from "zod";
+import { isAllowedModel } from "@/lib/ai/models";
 import { authenticated, errorResponse, json, logError, newRequestId } from "@/lib/api";
 import { fromRow, PREFERENCE_COLUMNS, toRowUpdate, type PreferencesRow } from "@/lib/preferences";
 
@@ -21,6 +22,11 @@ export async function PATCH(request: Request) {
   const parsed = PreferencesPatch.safeParse(raw);
   if (!parsed.success) {
     return errorResponse("INVALID_INPUT", "Ongeldige voorkeuren.", requestId, z.flattenError(parsed.error));
+  }
+
+  // Ronde 3 §4: only a model the server allows; null goes back to the default
+  if (parsed.data.aiModel != null && !isAllowedModel(parsed.data.aiModel)) {
+    return errorResponse("INVALID_INPUT", "Dit AI-model is niet beschikbaar.", requestId);
   }
 
   if (parsed.data.autoAnalysis === true && parsed.data.aiEnabled !== true) {

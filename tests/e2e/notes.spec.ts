@@ -1,6 +1,6 @@
 // Sprint 3: notes (BK-016, BK-017, BK-018, BK-021, BK-022, BK-023, BK-024). Uses only the fictitious e2e user and TEST text.
 import { expect, test, type Page } from "@playwright/test";
-import { login, newDevice } from "./fixtures";
+import { login, newDevice, openNoteDetails } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const body = (page: Page) => page.locator(".note-body[contenteditable='true']");
@@ -18,6 +18,7 @@ async function newNote(page: Page, title: string) {
 test("write a note; it saves by itself and survives a reload", async ({ page }) => {
   const title = unique("Overdenking");
   await newNote(page, title);
+  await openNoteDetails(page);
   await page.getByLabel("Soort").selectOption("overdenking");
   await body(page).click();
   await page.keyboard.type("De Heer is mijn herder.");

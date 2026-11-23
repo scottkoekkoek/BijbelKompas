@@ -1,7 +1,7 @@
 // Sprint 7: collections, research questions and the timeline (BK-047..BK-053). Fictitious user and TEST text only.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { login, newDevice } from "./fixtures";
+import { login, newDevice, openNoteDetails } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const saveState = (page: Page) => page.locator(".save-state");
@@ -18,7 +18,10 @@ async function newNote(page: Page, title: string, date?: string) {
   await page.getByRole("button", { name: "Lege notitie" }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
   await page.getByLabel("Titel").fill(title);
-  if (date) await page.getByLabel("Datum").fill(date);
+  if (date) {
+    await openNoteDetails(page);
+    await page.getByLabel("Datum").fill(date);
+  }
   await expect(saveState(page)).toHaveText("Opgeslagen");
   return page.url().split("/").pop()!;
 }
@@ -151,6 +154,8 @@ test("timeline: sorted on the event date, with writing dates apart, filtered by 
   await addNote(page, older);
 
   await page.goto("/timeline");
+  // Ronde 3: on narrow screens the filters sit behind "Filters"
+  if ((page.viewportSize()?.width ?? 0) < 900) await page.locator("details.list-filters > summary").click();
   await page.getByLabel("Thema of collectie").selectOption({ label: name });
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(new RegExp(`collectie=${id}`));

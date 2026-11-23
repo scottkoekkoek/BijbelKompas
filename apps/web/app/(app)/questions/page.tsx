@@ -25,15 +25,15 @@ export default async function QuestionsPage({ searchParams }: Props) {
     <>
       <div className="page-head">
         <h1>Onderzoeksvragen</h1>
+        <details className="new-collection">
+          <summary className="button">Nieuwe vraag</summary>
+          <NewQuestionForm />
+        </details>
       </div>
       <p className="page-intro">
         Vragen die je wilt uitzoeken. Koppel er Bijbelgedeelten en notities aan, en schrijf zelf je antwoord op als je
         zover bent. Alleen jij zet een vraag op beantwoord.
       </p>
-      <details className="new-collection">
-        <summary className="button">Nieuwe vraag</summary>
-        <NewQuestionForm />
-      </details>
 
       <nav aria-label="Vragen per status" className="tabs">
         {tabs.map((t) => (

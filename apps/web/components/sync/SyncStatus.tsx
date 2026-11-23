@@ -1,11 +1,13 @@
 "use client";
 /**
  * BK-026: starts the sync engine, registers the service worker and shows the sync state.
- * The text is always visible (not only a colour). It is not a live region: a status that changes
+ * The text is visible whenever something needs attention (not only a colour); on a phone the calm
+ * "Gesynchroniseerd" state is a compact dot with the same text as its accessible name (Ronde 3). It is not a live region: a status that changes
  * every minute would keep interrupting a screen reader; the editor announces its own saves.
  */
 import Link from "next/link";
 import { useEffect, useSyncExternalStore } from "react";
+import { claimForAccount } from "@/lib/offline/db";
 import { syncEngine, type SyncState } from "@/lib/offline/engine";
 
 const INITIAL: SyncState = { status: "idle", pending: 0, conflicts: 0, rejected: 0, lastSyncAt: null };
@@ -28,9 +30,11 @@ export function syncLabel(s: SyncState): { text: string; tone: "ok" | "busy" | "
 }
 
 /** Mount once per page (in the app layout and on the offline page). */
-export function SyncStarter() {
+export function SyncStarter({ userId }: { userId?: string }) {
   useEffect(() => {
-    syncEngine.start();
+    // pilot: this browser's offline copy belongs to one account (see claimForAccount)
+    if (userId) void claimForAccount(userId).catch(() => undefined).finally(() => syncEngine.start());
+    else syncEngine.start();
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
@@ -41,7 +45,7 @@ export function SyncStarter() {
         })
         .catch(() => undefined);
     }
-  }, []);
+  }, [userId]);
   return null;
 }
 
@@ -49,7 +53,7 @@ export function SyncIndicator({ href = "/sync" }: { href?: string }) {
   const s = useSyncState();
   const { text, tone } = syncLabel(s);
   return (
-    <Link href={href} className={`sync-indicator ${tone}`} aria-label={`Synchronisatie: ${text}`}>
+    <Link href={href} className={`sync-indicator ${tone}`} aria-label={`Synchronisatie: ${text}`} title={text}>
       <span className="sync-dot" aria-hidden="true" />
       <span className="sync-text">{text}</span>
     </Link>

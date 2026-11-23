@@ -101,6 +101,55 @@ export async function setMeta(patch: Partial<Meta>): Promise<Meta> {
   return next;
 }
 
+// ---- one account per browser store (Ronde 3 §6, pilot) ------------------------------------------
+// The store belongs to the account in meta.userId. When another account signs in on the same
+// browser, that account must never see or add to it. Without unsent changes the old copy is
+// wiped; with unsent changes it stays locked away until its own account signs in again.
+const ACCOUNT_KEY = "bk-account";
+
+function activeAccount(): string | null {
+  try {
+    return localStorage.getItem(ACCOUNT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this browser's store belongs to an account other than the one signed in now. */
+export async function storeOfOtherAccount(): Promise<boolean> {
+  const active = activeAccount();
+  if (!active) return false;
+  const m = await getMeta();
+  return m.userId !== null && m.userId !== active;
+}
+
+/** Called when the app opens for a signed-in account. */
+export async function claimForAccount(userId: string): Promise<"own" | "wiped" | "locked"> {
+  try {
+    localStorage.setItem(ACCOUNT_KEY, userId);
+  } catch {
+    /* private mode: nothing is stored anyway */
+  }
+  const m = await getMeta();
+  if (m.userId === null || m.userId === userId) return "own";
+  if ((await listOutbox()).length > 0 || (await listConflicts()).length > 0) return "locked";
+  await wipeAll();
+  return "wiped";
+}
+
+/** Signing out: no account is active on this browser any more. */
+export function forgetAccount() {
+  try {
+    localStorage.removeItem(ACCOUNT_KEY);
+  } catch {
+    /* nothing to forget */
+  }
+}
+
+async function refuseOtherAccount() {
+  if (await storeOfOtherAccount()) throw Object.assign(new Error("store of another account"), { name: "OtherAccount" });
+}
+
 /** A stable id for this browser, created once. */
 export async function deviceId(): Promise<string> {
   const m = await getMeta();
@@ -133,6 +182,7 @@ export async function listConflicts(): Promise<ConflictRecord[]> {
  * Unsynced local content is never replaced.
  */
 export async function rememberServerNote(note: Note): Promise<StoredNote> {
+  await refuseOtherAccount();
   const d = await db();
   const tx = d.transaction("notes", "readwrite");
   const prev = await tx.store.get(note.id);
@@ -158,6 +208,7 @@ export async function saveLocal(
   change: PendingChange,
   opts: { createdLocally?: boolean } = {},
 ): Promise<void> {
+  await refuseOtherAccount();
   const d = await db();
   const tx = d.transaction(["notes", "outbox"], "readwrite");
   const notes = tx.objectStore("notes");

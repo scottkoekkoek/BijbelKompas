@@ -1598,3 +1598,190 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   .selection-bar .selection-actions.tool-actions { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; gap: var(--space-1); }
   .selection-bar .selection-actions.tool-actions .button { min-height: 40px; padding: 0 var(--space-2); }
 }
+
+/* =====================================================================
+   Ronde 3 (pilot): shared patterns and per-screen refinements
+   ===================================================================== */
+
+/* ---- search: passage first, word hits second, AI apart ---- */
+.active-filters { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; margin: 0 0 var(--space-4); align-items: center; }
+.filter-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border-radius: var(--radius-full); background: var(--primary-soft); color: var(--primary); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.filter-clear { font-size: var(--text-sm); display: inline-flex; align-items: center; min-height: 32px; padding: 4px 8px; }
+.word-results-title { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-family: var(--font-ui); margin: var(--space-6) 0 var(--space-2); }
+.word-group-title { font-size: var(--text-lg); }
+.word-group-empty { margin-top: var(--space-4); }
+.word-results + .ask-notes { margin-top: var(--space-8); border-style: dashed; }
+.ask-notes h2 { font-size: var(--text-lg); margin-top: 0; }
+@media (max-width: 767px) {
+  .ask-notes { padding: var(--space-4); }
+}
+.nowrap { white-space: nowrap; }
+.search-form { margin-bottom: var(--space-5); }
+.passage-hit .passage-translation { font-size: var(--text-base); font-family: var(--font-ui); font-weight: var(--weight-regular); }
+
+/* ---- Bible reader: verse number stays with its first word; grouped copy actions ---- */
+.verse-start { white-space: nowrap; }
+.copy-menu { position: relative; display: inline-block; }
+.copy-menu > summary { list-style: none; cursor: pointer; }
+.copy-menu > summary::-webkit-details-marker { display: none; }
+.copy-menu > summary::after { content: ""; width: 6px; height: 6px; margin-left: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); }
+.copy-menu[open] > summary { background: var(--surface-2); }
+.copy-menu-items { display: flex; flex-wrap: wrap; gap: var(--space-1); padding-top: var(--space-1); }
+.selection-bar .verse-notes > .button { margin-top: var(--space-1); }
+.selection-bar .selection-ref { display: flex; align-items: baseline; gap: var(--space-2); }
+
+/* ---- note editor: status by the title, rarely used fields folded on a phone ---- */
+.note-head { margin-bottom: var(--space-2); align-items: center; }
+.note-head .note-status-row { flex: 1 1 100%; min-height: 32px; }
+.note-details { margin: 0 0 var(--space-2); border-top: 1px solid var(--border); }
+.note-details + .doc-bar, .note-details[open] + .doc-bar { border-top: 0; }
+.note-details > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-1) 0; font-size: var(--text-sm); }
+.note-details > summary::-webkit-details-marker { display: none; }
+.note-details > summary::after { content: ""; width: 7px; height: 7px; margin-left: auto; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: translateY(-2px) rotate(45deg); transition: transform var(--duration) var(--ease); }
+.note-details[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.note-details-label { font-weight: var(--weight-semibold); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--text-xs); }
+.note-details-value { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-details[open] .note-details-value { visibility: hidden; }
+.note-details .note-fields { margin-bottom: var(--space-3); }
+.note-actions .button:not(.secondary):not(.ghost) { box-shadow: var(--shadow-sm); }
+@media (max-width: 767px) {
+  .doc-bar .doc-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* minmax(0, …) and wrapping: a long label ("Terugzetten naar concept") in a wider font never pushes the page sideways */
+  .note-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); width: 100%; }
+  .note-actions .button { justify-content: center; white-space: normal; text-align: center; line-height: 1.2; }
+}
+.note-details .note-fields { align-items: flex-start; }
+
+/* ---- reading view (Ronde 3 §2): every finished note, sermons included ---- */
+.doc-block > :first-child { margin-top: 0; }
+.doc-block > :last-child { margin-bottom: 0; }
+.doc-block:target { animation: found 6s ease-out; border-radius: 4px; scroll-margin-top: var(--space-8); }
+.sermon-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.sermon-head-text { min-width: 0; flex: 1 1 320px; }
+.sermon-edit { flex: 0 0 auto; }
+.sermon-menu-toggle { display: none; }
+.reading-panels { margin-top: var(--space-10); max-width: 38em; display: grid; gap: var(--space-3); }
+.reading-panels > * { margin: 0; }
+@media (min-width: 768px) {
+  .sermon-menu-toggle { display: inline-flex; margin-left: auto; }
+  html[data-leesfocus="1"] .shell { grid-template-columns: minmax(0, 1fr); }
+  html[data-leesfocus="1"] .sidebar { display: none; }
+}
+@media (min-width: 900px) {
+  /* with the menu folded away a tablet on its side has room for text and passage side by side */
+  html[data-leesfocus="1"] .sermon-view.has-passage .sermon-layout { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; }
+  html[data-leesfocus="1"] .sermon-passage { display: block; order: 0; position: sticky; top: var(--space-6); }
+  html[data-leesfocus="1"] .sermon-passage-toggle { display: none; }
+}
+@media (max-width: 767px) {
+  .sermon-head { flex-direction: column; gap: var(--space-2); }
+  .sermon-head-text { flex: 0 0 auto; }
+  .sermon-edit { align-self: flex-start; }
+}
+
+/* ---- trash for drafts (Ronde 3 §3) ---- */
+.note-list > li.has-action { display: flex; align-items: stretch; }
+.note-list > li.has-action > a { flex: 1 1 auto; min-width: 0; }
+.note-list-action { display: flex; align-items: center; padding-right: var(--space-3); }
+.note-list-action .trash-button:hover { color: var(--danger); }
+.danger-text { color: var(--danger); }
+.danger-text:hover { color: var(--danger-hover); }
+.trash-error { display: block; color: var(--danger); font-size: var(--text-sm); }
+.undo-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.list-footer-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+.list-footer-links a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+
+/* ---- summary saved with its note (Ronde 3 §5) ---- */
+.linked-summary { padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
+.linked-summary h2 { margin-top: 0; font-size: var(--text-lg); }
+.linked-summary-main { font-family: var(--font-display); font-size: var(--text-md); font-style: italic; }
+.linked-summary .alert { margin: 0 0 var(--space-4); }
+.linked-summary .alert p { margin: 0 0 var(--space-2); }
+.linked-summary ol { padding-left: 1.3em; }
+
+/* ---- Beheer (pilot) ---- */
+.form-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-3); align-items: end; }
+.form-grid .field { margin-bottom: 0; }
+@media (max-width: 767px) { .form-grid { grid-template-columns: minmax(0, 1fr); } .form-grid .form-actions .button { width: 100%; justify-content: center; } }
+.link-result { margin-top: var(--space-4); display: grid; gap: var(--space-3); }
+.link-result p { margin: 0; }
+.link-value, .link-text { width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); }
+.link-text { font-family: var(--font-ui); resize: vertical; }
+.admin-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding: var(--space-4) var(--space-5); }
+.admin-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 260px; }
+.admin-row-main .note-list-title { overflow-wrap: anywhere; }
+.admin-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); }
+.link-form.compact .link-result { flex-basis: 100%; }
+.badge.muted { background: var(--surface-2); color: var(--muted); }
+
+/* Ronde 3 §4: Instellingen in vaste onderdelen + AI-modelkeuze */
+.settings-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.settings-nav a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none;
+}
+.settings-nav a:hover { border-color: var(--accent); }
+.settings-form h2, .settings-section { scroll-margin-top: 16px; }
+.model-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.model-facts div { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2, var(--surface)); }
+.model-facts dt { font-size: 0.8rem; color: var(--muted); }
+.model-facts dd { margin: 2px 0 0; font-weight: 600; }
+.model-compare { margin-top: 8px; }
+.model-compare summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.model-compare li { margin: 6px 0; }
+@media (max-width: 480px) {
+  .model-facts { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .model-facts div { display: flex; gap: 8px; align-items: baseline; border: 0; border-radius: 0; padding: 6px 10px; }
+  .model-facts div + div { border-top: 1px solid var(--border); }
+  .model-facts dt { flex: 0 0 72px; }
+  .model-facts dd { margin: 0; font-weight: 500; }
+}
+.budget-form { display: grid; gap: 4px; max-width: 420px; }
+
+/* Ronde 3: Bijbeloverzicht met voortgang bij elk boek; compacte rijen en een bereikbare boekzoeker op de telefoon */
+.book-list a { flex-wrap: nowrap; justify-content: space-between; gap: var(--space-2); }
+.book-list-name { min-width: 0; overflow-wrap: anywhere; }
+.book-list-progress { flex: 0 0 auto; flex-basis: auto; font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.book-list a.started .book-list-progress { color: var(--primary); font-weight: var(--weight-semibold); }
+@media (max-width: 599px) {
+  .book-filter { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: var(--space-2) 0; margin: 0; }
+  .book-list { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); }
+  .book-list a { border: 0; border-radius: 0; box-shadow: none; min-height: 44px; border-bottom: 1px solid var(--border); }
+  .book-list li:last-child a { border-bottom: 0; }
+}
+
+/* Ronde 3: Home. Leeskaart en recente notities krijgen de aandacht; tellers en snelkoppelingen samen ernaast. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .dash-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .dash-grid .quick-actions { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+  /* a lower reading card: passage in the head, "Verder lezen" as the button */
+  .continue-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); row-gap: 0; padding: var(--space-4); }
+  .continue-card .eyebrow { grid-column: 1; }
+  .continue-card .continue-title { grid-column: 1; }
+  .continue-card .continue-text { display: none; }
+  .continue-card .continue-cta { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; min-height: 44px; }
+  .continue-card .card-icon { display: none; }
+  .dash-hero-actions > * { flex: 1 1 140px; }
+}
+
+/* Ronde 3: lijsten (Collecties, Vragen, Tijdlijn, Sjablonen) met dezelfde plek voor de aanmaakactie en de filters */
+.page-head .new-collection { margin: 0; }
+.page-head .new-collection[open] { flex-basis: 100%; order: 3; }
+.page-head .new-collection[open] > summary { margin-bottom: var(--space-3); }
+.page-head + .page-intro { margin-top: var(--space-2); }
+.list-filters { margin: 0 0 var(--space-6); }
+.list-filters .timeline-filters { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; border-radius: 0; }
+@media (max-width: 599px) {
+  .timeline li { padding: var(--space-3); }
+}
+
+/* Ronde 3: op de telefoon is "Gesynchroniseerd" een compacte stip; wachten, offline en fouten blijven als tekst zichtbaar */
+@media (max-width: 767px) {
+  .topbar .sync-indicator.ok { min-width: 44px; justify-content: center; }
+  .topbar .sync-indicator.ok .sync-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+/* long book names (1 Thessalonicenzen) wrap at a hyphen, not in the middle of a syllable */
+.book-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); }
+.book-list-name { overflow-wrap: normal; hyphens: auto; }

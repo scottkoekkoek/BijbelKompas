@@ -27,4 +27,12 @@ export default async function globalSetup() {
     body: JSON.stringify({ email: E2E_USER.email, password: E2E_USER.password, email_confirm: true }),
   });
   if (!res.ok) throw new Error(`e2e-gebruiker aanmaken mislukt: ${res.status} ${await res.text()}`);
+  // Ronde 3 pilot: the e2e user is an app admin, so Beheer (invitations, access, AI budget) can be tested
+  const { id } = (await res.json()) as { id: string };
+  const admin = await fetch(`${API_URL}/rest/v1/app_admins`, {
+    method: "POST",
+    headers: { ...headers, prefer: "resolution=ignore-duplicates" },
+    body: JSON.stringify({ user_id: id }),
+  });
+  if (!admin.ok) throw new Error(`e2e-beheerder instellen mislukt: ${admin.status} ${await admin.text()}`);
 }

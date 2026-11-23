@@ -24,3 +24,9 @@ export async function newDevice(browser: Browser, info: TestInfo) {
     hasTouch: u.hasTouch,
   });
 }
+
+/** Ronde 3: on a phone the note's type, date and sermon fields are folded under "Gegevens". */
+export async function openNoteDetails(page: Page) {
+  const details = page.locator("details.note-details");
+  if ((await details.getAttribute("open")) === null) await details.locator("summary").click();
+}

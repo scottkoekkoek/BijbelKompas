@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { authenticated, errorResponse, json, logError, newRequestId } from "@/lib/api";
 import { analyseNote } from "@/lib/ai/data";
-import { configuredProvider } from "@/lib/ai/provider";
+import { providerForUser } from "@/lib/ai/models";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   if (!auth) return errorResponse("UNAUTHENTICATED", "Je bent niet ingelogd.", requestId);
   const id = z.uuid().safeParse((await ctx.params).id);
   if (!id.success) return errorResponse("NOT_FOUND", "Notitie niet gevonden.", requestId);
-  const provider = configuredProvider();
+  const { provider } = await providerForUser(auth.supabase);
   if (!provider) return errorResponse("FORBIDDEN", "Er is nog geen AI-aanbieder ingesteld. Er is niets verstuurd.", requestId);
   try {
     const r = await analyseNote(auth.supabase, provider, id.data);

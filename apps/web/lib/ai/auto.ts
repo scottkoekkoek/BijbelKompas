@@ -1,7 +1,7 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import { autoAnalyse } from "./data";
-import { configuredProvider } from "./provider";
+import { providerForUser } from "./models";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -11,7 +11,7 @@ type Db = Awaited<ReturnType<typeof createClient>>;
  */
 export async function autoAnalyseAfter(db: Db, noteId: string, requestId: string) {
   try {
-    const r = await autoAnalyse(db, configuredProvider(), noteId);
+    const r = await autoAnalyse(db, (await providerForUser(db)).provider, noteId);
     if (r) console.info(JSON.stringify({ level: "info", requestId, route: "auto-analyse", ok: r.ok, ...(r.ok ? { added: r.added, reused: r.reused } : { kind: r.kind }) }));
   } catch (err) {
     console.error(JSON.stringify({ level: "error", requestId, route: "auto-analyse", code: (err as { code?: string }).code ?? "unknown" }));

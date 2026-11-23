@@ -116,9 +116,18 @@ const fictief: AiProvider = {
   },
 };
 
-export function configuredProvider(env: Record<string, string | undefined> = process.env): AiProvider | null {
+/** Models of the local stand-in, so choosing a model can be tested without sending anything. */
+export const FICTIEF_MODELS = ["lokaal-1", "lokaal-snel"] as const;
+
+/**
+ * The provider set on the server. `model` is a model the caller already checked against the allowed
+ * list (lib/ai/models.ts); without it the server default is used.
+ */
+export function configuredProvider(env: Record<string, string | undefined> = process.env, model?: string): AiProvider | null {
   const choice = env.AI_PROVIDER?.trim().toLowerCase();
-  if (choice === "fictief" && env.VERCEL_ENV !== "production") return fictief;
-  if (choice === "claude") return claudeFromEnv(env);
+  if (choice === "fictief" && env.VERCEL_ENV !== "production") {
+    return model && (FICTIEF_MODELS as readonly string[]).includes(model) ? { ...fictief, model } : fictief;
+  }
+  if (choice === "claude") return claudeFromEnv(env, model);
   return null; // nothing chosen: nothing is sent anywhere
 }

@@ -4,9 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Translation = { id: string; name: string; rights_status: string };
+export type ModelChoice = { id: string; label: string; speed: string; quality: string; cost: string; note: string };
+export type AiSetup = {
+  models: ModelChoice[];
+  defaultModel: string | null;
+  /** text leaves the server (real provider) */
+  external: boolean;
+  /** the stored choice is no longer offered, so the default is used */
+  fellBack: boolean;
+};
 type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
-export function PreferencesForm({ initial, translations }: { initial: Preferences; translations: Translation[] }) {
+export function PreferencesForm({ initial, translations, ai }: { initial: Preferences; translations: Translation[]; ai: AiSetup }) {
   const router = useRouter();
   const [prefs, setPrefs] = useState(initial);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -25,6 +34,8 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
       bibleFontSize: prefs.bibleFontSize,
       aiEnabled: prefs.aiEnabled,
       autoAnalysis: prefs.aiEnabled ? prefs.autoAnalysis : false,
+      // only sent when changed, so a model that disappeared never blocks saving the rest
+      ...(prefs.aiModel !== initial.aiModel ? { aiModel: prefs.aiModel } : {}),
     };
     try {
       const res = await fetch("/api/v1/me/preferences", {
@@ -46,8 +57,8 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
   }
 
   return (
-    <form className="card" onSubmit={save} aria-describedby="save-status">
-      <h2>Weergave</h2>
+    <form className="card settings-form" onSubmit={save} aria-describedby="save-status">
+      <h2 id="weergave">Weergave</h2>
       <div className="field">
         <label htmlFor="theme">Thema</label>
         <select id="theme" value={prefs.theme} onChange={(e) => update("theme", e.target.value as Preferences["theme"])}>
@@ -72,7 +83,7 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
         </p>
       </div>
 
-      <h2>Bijbel</h2>
+      <h2 id="bijbel">Bijbel</h2>
       <div className="field">
         <label htmlFor="translation">Standaardvertaling</label>
         <select
@@ -94,7 +105,7 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
         </span>
       </div>
 
-      <h2>AI</h2>
+      <h2 id="ai-instellingen">AI</h2>
       <div className="field">
         <div className="check">
           <input id="ai" type="checkbox" checked={prefs.aiEnabled} onChange={(e) => update("aiEnabled", e.target.checked)} />
@@ -111,10 +122,54 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
           <label htmlFor="auto">Analyse automatisch starten na afronden</label>
         </div>
         <span className="hint">
-          Met AI-hulp kun je na afronden verbanden met je andere notities laten voorstellen. Uit betekent: er wordt
-          niets naar een AI-aanbieder gestuurd en gewoon zoeken werkt gewoon. Automatisch starten komt zodra er een
-          aanbieder is gekozen.
+          Met AI-hulp kun je vragen stellen aan je eigen notities, uitleg bij verzen krijgen en een afgeronde notitie
+          laten samenvatten. Uit betekent: er wordt niets naar een AI-aanbieder gestuurd en gewoon zoeken werkt gewoon.
         </span>
+      </div>
+
+      <div className="field">
+        <label htmlFor="ai-model">AI-model</label>
+        {ai.models.length === 0 ? (
+          <p className="hint" id="ai-model">Er is op de server nog geen AI-aanbieder ingesteld, dus er is niets te kiezen en er wordt niets verstuurd.</p>
+        ) : (
+          <>
+            <select
+              id="ai-model"
+              value={prefs.aiModel && ai.models.some((m) => m.id === prefs.aiModel) ? prefs.aiModel : ""}
+              disabled={!prefs.aiEnabled}
+              onChange={(e) => update("aiModel", e.target.value || null)}
+              aria-describedby="ai-model-hint"
+            >
+              <option value="">Standaard ({ai.models.find((m) => m.id === ai.defaultModel)?.label ?? "server"})</option>
+              {ai.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            {ai.fellBack && prefs.aiModel === initial.aiModel && (
+              <p className="alert info" role="status">
+                Het model dat je koos is niet meer beschikbaar. Tot je een ander kiest gebruikt BijbelKompas het standaardmodel.
+              </p>
+            )}
+            <ModelFacts model={ai.models.find((m) => m.id === (prefs.aiModel ?? ai.defaultModel)) ?? ai.models.find((m) => m.id === ai.defaultModel)} />
+            <span id="ai-model-hint" className="hint">
+              Je keuze geldt alleen voor jouw account en voor nieuwe AI-taken. Je budget loopt gewoon door als je wisselt.
+              {ai.external ? " De sleutel van de aanbieder staat alleen op de server." : " Dit is een testaanbieder: er gaat niets naar buiten."}
+            </span>
+            <details className="model-compare">
+              <summary>Wat is het verschil tussen de modellen?</summary>
+              <ul className="plain">
+                {ai.models.map((m) => (
+                  <li key={m.id}>
+                    <strong>{m.label}</strong>: snelheid {m.speed.toLowerCase()}, kwaliteit {m.quality.toLowerCase()}, kosten {m.cost.toLowerCase()}.{" "}
+                    {m.note}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </>
+        )}
       </div>
 
       <button type="submit" className="button" disabled={status.kind === "saving"}>
@@ -125,5 +180,25 @@ export function PreferencesForm({ initial, translations }: { initial: Preference
         {status.kind === "error" && <span className="alert error" role="alert" style={{ display: "inline-block" }}>{status.message}</span>}
       </p>
     </form>
+  );
+}
+
+function ModelFacts({ model }: { model: ModelChoice | undefined }) {
+  if (!model) return null;
+  return (
+    <dl className="model-facts" aria-label={`Over ${model.label}`}>
+      <div>
+        <dt>Snelheid</dt>
+        <dd>{model.speed}</dd>
+      </div>
+      <div>
+        <dt>Kwaliteit</dt>
+        <dd>{model.quality}</dd>
+      </div>
+      <div>
+        <dt>Kosten</dt>
+        <dd>{model.cost}</dd>
+      </div>
+    </dl>
   );
 }

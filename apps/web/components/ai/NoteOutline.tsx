@@ -1,7 +1,8 @@
 "use client";
 /**
  * ADR-018: an AI outline and summary of a finished note. It is a proposal next to the note: the note
- * is never changed. The owner can copy it, or save it as a new note.
+ * is never changed. Ronde 3 §5: the main action is "Opslaan bij deze notitie" (a separate section of
+ * the same note, see LinkedSummary); copying or saving as a new note stay as secondary choices.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,13 +18,23 @@ type Outline = {
   model: string;
   stale: boolean;
 };
-type Props = { noteId: string; title: string; noteType: string; aiEnabled: boolean; provider: { name: string; external: boolean } | null };
+type Props = {
+  noteId: string;
+  title: string;
+  noteType: string;
+  aiEnabled: boolean;
+  provider: { name: string; external: boolean } | null;
+  /** the outline whose summary is saved with the note, if any (Ronde 3 §5) */
+  savedOutlineId?: string | null;
+  hasSaved?: boolean;
+};
 
-export function NoteOutline({ noteId, title, noteType, aiEnabled, provider }: Props) {
+export function NoteOutline({ noteId, title, noteType, aiEnabled, provider, savedOutlineId = null, hasSaved = false }: Props) {
   const router = useRouter();
   const [outline, setOutline] = useState<Outline | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const details = useRef<HTMLDetailsElement>(null);
   const opened = useRef(false);
 
@@ -45,8 +56,9 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider }: Pr
   useEffect(() => {
     if (opened.current || outline === null) return;
     opened.current = true;
+    if (hasSaved) return; // the saved summary already shows it (Ronde 3 §5)
     if (details.current) details.current.open = true;
-  }, [outline]);
+  }, [outline, hasSaved]);
 
   async function make() {
     setBusy(true);
@@ -62,6 +74,30 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider }: Pr
       setStatus(body.reused ? "Van deze versie is al een opzet gemaakt; er is niets opnieuw betaald." : "Opzet ontvangen. Je notitie is niet veranderd.");
     } catch {
       setStatus("Geen verbinding. Probeer het later opnieuw.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveWithNote() {
+    if (!outline) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/v1/notes/${noteId}/summary`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ outlineId: outline.id }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setStatus(body?.error?.message ?? "Opslaan is mislukt. Een eerder bewaarde samenvatting is niet veranderd.");
+        return;
+      }
+      setConfirmReplace(false);
+      setStatus("Samenvatting bewaard bij deze notitie.");
+      router.refresh();
+    } catch {
+      setStatus("Geen verbinding. Er is niets veranderd.");
     } finally {
       setBusy(false);
     }
@@ -100,7 +136,7 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider }: Pr
   }
 
   return (
-    <details ref={details} className="ai-outline">
+    <details ref={details} className="ai-outline" id="opzet">
       <summary>Opzet en samenvatting</summary>
       {outline && (
         <div className="card ai-answer">
@@ -144,10 +180,31 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider }: Pr
           )}
           <p className="muted">Voorstel van {outline.model}. Je notitie zelf blijft zoals hij is.</p>
           <div className="button-row">
-            <button type="button" className="button secondary" onClick={() => void copy()}>
+            {outline.id === savedOutlineId ? (
+              <span className="badge afgerond">Bewaard bij deze notitie</span>
+            ) : hasSaved && !confirmReplace ? (
+              <button type="button" className="button" onClick={() => setConfirmReplace(true)} disabled={busy}>
+                Vervang de bewaarde samenvatting
+              </button>
+            ) : confirmReplace ? (
+              <>
+                <span className="muted">De bewaarde samenvatting vervangen door deze?</span>
+                <button type="button" className="button" onClick={() => void saveWithNote()} disabled={busy}>
+                  Ja, vervangen
+                </button>
+                <button type="button" className="button secondary" onClick={() => setConfirmReplace(false)} disabled={busy}>
+                  Annuleren
+                </button>
+              </>
+            ) : (
+              <button type="button" className="button" onClick={() => void saveWithNote()} disabled={busy}>
+                Opslaan bij deze notitie
+              </button>
+            )}
+            <button type="button" className="button ghost" onClick={() => void copy()}>
               Kopieer opzet
             </button>
-            <button type="button" className="button secondary" onClick={() => void saveAsNote()} disabled={busy}>
+            <button type="button" className="button ghost" onClick={() => void saveAsNote()} disabled={busy}>
               Als nieuwe notitie opslaan
             </button>
           </div>

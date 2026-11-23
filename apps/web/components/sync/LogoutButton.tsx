@@ -5,7 +5,7 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { signOut } from "@/app/auth/actions";
-import { listOutbox, wipeAll } from "@/lib/offline/db";
+import { forgetAccount, listOutbox, wipeAll } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
 import { LogOutIcon } from "@/components/icons";
 
@@ -41,6 +41,7 @@ export function LogoutButton() {
   async function leave(wipe: boolean) {
     setBusy(true);
     if (wipe) await wipeAll().catch(() => undefined);
+    forgetAccount();
     await signOut();
   }
 

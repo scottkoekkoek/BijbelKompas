@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookIcon, FolderIcon, HomeIcon, MoreIcon, NoteIcon, QuestionIcon, SearchIcon, SettingsIcon, TemplateIcon, TimelineIcon } from "./icons";
+import { BookIcon, FolderIcon, HomeIcon, MoreIcon, NoteIcon, QuestionIcon, SearchIcon, SettingsIcon, ShieldIcon, TemplateIcon, TimelineIcon } from "./icons";
 
 const MAIN = [
   { href: "/dashboard", label: "Home", Icon: HomeIcon },
@@ -38,7 +38,7 @@ function NavItems({ items, pathname }: { items: Item[]; pathname: string }) {
   );
 }
 
-export function SidebarNav() {
+export function SidebarNav({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Hoofdmenu">
@@ -50,7 +50,13 @@ export function SidebarNav() {
         <NavItems items={ORGANISE} pathname={pathname} />
       </div>
       <div className="nav-section">
-        <NavItems items={[{ href: "/settings", label: "Instellingen", Icon: SettingsIcon }]} pathname={pathname} />
+        <NavItems
+          items={[
+            { href: "/settings", label: "Instellingen", Icon: SettingsIcon },
+            ...(admin ? [{ href: "/beheer", label: "Beheer", Icon: ShieldIcon }] : []),
+          ]}
+          pathname={pathname}
+        />
       </div>
     </nav>
   );
@@ -59,7 +65,7 @@ export function SidebarNav() {
 export function BottomNav() {
   const pathname = usePathname();
   const items = [...MAIN, { href: "/meer", label: "Meer", Icon: MoreIcon }];
-  const moreActive = ["/meer", "/settings", "/templates", "/collections", "/questions", "/timeline", "/sync"].some((h) => isActive(pathname, h));
+  const moreActive = ["/meer", "/settings", "/templates", "/collections", "/questions", "/timeline", "/sync", "/beheer"].some((h) => isActive(pathname, h));
   return (
     <nav aria-label="Hoofdmenu" className="bottom-nav">
       <ul>

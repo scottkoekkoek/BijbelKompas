@@ -55,6 +55,8 @@ export const NoteSummary = z.object({
   documentVersion: z.number().int(),
   currentRevision: z.number().int(),
   archived: z.boolean(),
+  /** Ronde 3 §3: a draft in the trash (left out of lists, search and offline views) */
+  trashed: z.boolean().optional(),
   updatedAt: z.string(),
 });
 export type NoteSummary = z.infer<typeof NoteSummary>;

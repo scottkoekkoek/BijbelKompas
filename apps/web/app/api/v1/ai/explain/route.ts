@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { authenticated, errorResponse, json, logError, newRequestId, readBody } from "@/lib/api";
 import { explainVerses, MAX_EXPLAIN_VERSES } from "@/lib/ai/data";
-import { configuredProvider } from "@/lib/ai/provider";
+import { providerForUser } from "@/lib/ai/models";
 
 export const dynamic = "force-dynamic";
 const Body = z
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const requestId = newRequestId();
   const auth = await authenticated();
   if (!auth) return errorResponse("UNAUTHENTICATED", "Je bent niet ingelogd.", requestId);
-  const provider = configuredProvider();
+  const { provider } = await providerForUser(auth.supabase);
   if (!provider) return errorResponse("FORBIDDEN", "Er is nog geen AI-aanbieder ingesteld. Er is niets verstuurd.", requestId);
   const body = await readBody(request, Body, requestId, "Ongeldige verzen.");
   if (!body.ok) return body.response;

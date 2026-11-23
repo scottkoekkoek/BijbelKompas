@@ -84,30 +84,6 @@ export default async function DashboardPage() {
             </Link>
           )}
 
-          <section className="dash-section" aria-labelledby="dash-overview">
-            <h2 id="dash-overview" className="visually-hidden">Overzicht</h2>
-            <ul className="stat-grid">
-              <li>
-                <Link className="stat" href="/notes">
-                  <span className="stat-value">{count(notes.length)}</span>
-                  <span className="stat-label">{notes.length === 1 ? "notitie" : "notities"}</span>
-                </Link>
-              </li>
-              <li>
-                <Link className="stat" href="/notes?status=concept">
-                  <span className="stat-value">{count(concepts)}</span>
-                  <span className="stat-label">{concepts === 1 ? "concept" : "concepten"}</span>
-                </Link>
-              </li>
-              <li>
-                <Link className="stat" href="/questions">
-                  <span className="stat-value">{openQuestions}</span>
-                  <span className="stat-label">{openQuestions === 1 ? "lopende vraag" : "lopende vragen"}</span>
-                </Link>
-              </li>
-            </ul>
-          </section>
-
           <section className="panel" aria-labelledby="dash-recent">
             <div className="panel-head">
               <h2 id="dash-recent">Recente notities</h2>
@@ -144,7 +120,32 @@ export default async function DashboardPage() {
           </section>
         </div>
 
+        {/* Ronde 3: counts and shortcuts together, after the reading card and recent notes */}
         <div className="dash-stack">
+          <section className="dash-section" aria-labelledby="dash-overview">
+            <h2 id="dash-overview" className="visually-hidden">Overzicht</h2>
+            <ul className="stat-grid">
+              <li>
+                <Link className="stat" href="/notes">
+                  <span className="stat-value">{count(notes.length)}</span>
+                  <span className="stat-label">{notes.length === 1 ? "notitie" : "notities"}</span>
+                </Link>
+              </li>
+              <li>
+                <Link className="stat" href="/notes?status=concept">
+                  <span className="stat-value">{count(concepts)}</span>
+                  <span className="stat-label">{concepts === 1 ? "concept" : "concepten"}</span>
+                </Link>
+              </li>
+              <li>
+                <Link className="stat" href="/questions">
+                  <span className="stat-value">{openQuestions}</span>
+                  <span className="stat-label">{openQuestions === 1 ? "lopende vraag" : "lopende vragen"}</span>
+                </Link>
+              </li>
+            </ul>
+          </section>
+
           <section className="dash-section" aria-labelledby="dash-quick">
             <h2 id="dash-quick" className="visually-hidden">Snel naar</h2>
             <ul className="quick-actions">

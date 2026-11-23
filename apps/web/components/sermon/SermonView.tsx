@@ -1,9 +1,10 @@
 "use client";
-// Feature 4: the calm reading view of a finished sermon. Reads only: the font size is kept on this
-// device (localStorage) and the reading place in this tab (sessionStorage), never on the note.
+// Feature 4 + Ronde 3 §2: the calm reading view of every finished note (a sermon gets the same view
+// with its details). Reads only: the font size is kept on this device (localStorage), the reading
+// place in this tab (sessionStorage) and the folded main menu on this device, never on the note.
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { BookIcon, ChevronLeftIcon, ExternalIcon } from "@/components/icons";
+import { BookIcon, ExternalIcon, MenuHideIcon, MenuShowIcon, PenIcon } from "@/components/icons";
 import { clampFontStep, DEFAULT_FONT_STEP, FONT_STEPS } from "@/lib/notes/sermon";
 
 export type SermonPassage = {
@@ -23,6 +24,7 @@ const FONT_KEY = "bk-preek-lettergrootte";
 const scrollKey = (id: string) => `bk-preek-plek:${id}`;
 const passageKey = (id: string) => `bk-preek-gedeelte:${id}`;
 const openKey = (id: string) => `bk-preek-paneel:${id}`;
+const MENU_KEY = "bk-leesweergave-menu";
 
 function read(store: () => Storage, key: string): string | null {
   try {
@@ -45,17 +47,33 @@ export function SermonView({
   meta,
   passages,
   children,
+  eyebrow = "Preekweergave",
+  editHref,
+  crumb,
+  notice,
+  after,
 }: {
   noteId: string;
   title: string;
   meta: string[];
   passages: SermonPassage[];
   children: ReactNode;
+  /** small label above the title, e.g. "Preek · Afgerond" */
+  eyebrow?: string;
+  /** opens the same note explicitly in the editor */
+  editHref: string;
+  /** where "back" goes (the list, the passage or the start screen) */
+  crumb?: ReactNode;
+  /** e.g. unsent changes on this device */
+  notice?: ReactNode;
+  /** below the text: the linked summary and the note's other panels */
+  after?: ReactNode;
 }) {
   const ids = useId();
   const [step, setStep] = useState(DEFAULT_FONT_STEP);
   const [active, setActive] = useState(passages[0]?.key ?? "");
   const [open, setOpen] = useState(false);
+  const [menuHidden, setMenuHidden] = useState(false);
   const restored = useRef(false);
   const leaving = useRef(false);
 
@@ -68,7 +86,21 @@ export function SermonView({
     if (f !== null) setStep(clampFontStep(Number(f)));
     if (p && passages.some((x) => x.key === p)) setActive(p);
     if (read(() => sessionStorage, openKey(noteId)) === "1") setOpen(true);
+    if (read(() => localStorage, MENU_KEY) === "verborgen") setMenuHidden(true);
   }, [noteId, passages]);
+
+  // the main menu can be folded away while reading; it always comes back when leaving the view
+  useEffect(() => {
+    if (menuHidden) document.documentElement.dataset.leesfocus = "1";
+    else delete document.documentElement.dataset.leesfocus;
+    return () => {
+      delete document.documentElement.dataset.leesfocus;
+    };
+  }, [menuHidden]);
+  const toggleMenu = () => {
+    write(() => localStorage, MENU_KEY, menuHidden ? "zichtbaar" : "verborgen");
+    setMenuHidden(!menuHidden);
+  };
 
   // back from the Bible reader: the same place in the sermon
   useEffect(() => {
@@ -130,17 +162,20 @@ export function SermonView({
 
   return (
     <article className={passage ? "sermon-view has-passage" : "sermon-view"} style={{ ["--sermon-scale" as string]: String(scale) }} onClickCapture={onLinkClick}>
-      <p className="crumb">
-        <Link className="sermon-back" href={`/notes/${noteId}`}>
-          <ChevronLeftIcon /> Terug naar notitie
-        </Link>
-      </p>
+      {crumb && <p className="crumb">{crumb}</p>}
 
       <header className="sermon-head">
-        <p className="eyebrow">Preekweergave</p>
-        <h1>{title}</h1>
-        {meta.length > 0 && <p className="sermon-meta">{meta.join(" · ")}</p>}
+        <div className="sermon-head-text">
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          {meta.length > 0 && <p className="sermon-meta">{meta.join(" · ")}</p>}
+        </div>
+        <Link className="button sermon-edit" href={editHref}>
+          <PenIcon size={18} />
+          Bewerken
+        </Link>
       </header>
+      {notice}
 
       <div className="sermon-tools">
         <div className="sermon-font" role="group" aria-label="Lettergrootte">
@@ -169,10 +204,17 @@ export function SermonView({
             Bijbelgedeelte
           </button>
         )}
+        <button type="button" className="button ghost small sermon-menu-toggle" aria-pressed={menuHidden} onClick={toggleMenu}>
+          {menuHidden ? <MenuShowIcon /> : <MenuHideIcon />}
+          {menuHidden ? "Menu tonen" : "Menu verbergen"}
+        </button>
       </div>
 
       <div className="sermon-layout">
-        <div className="sermon-main">{children}</div>
+        <div className="sermon-main">
+          {children}
+          {after}
+        </div>
 
         {passage && (
           <aside id={panelId} className="sermon-passage" data-open={open ? "true" : "false"} aria-labelledby={`${panelId}-title`}>

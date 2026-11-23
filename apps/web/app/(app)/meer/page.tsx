@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRightIcon, FolderIcon, QuestionIcon, SettingsIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
+import { ChevronRightIcon, FolderIcon, QuestionIcon, SettingsIcon, ShieldIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
 import { LogoutButton } from "@/components/sync/LogoutButton";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Meer" };
 
@@ -24,11 +25,19 @@ const GROUPS = [
   },
 ];
 
-export default function MorePage() {
+const ADMIN = {
+  title: "Pilot",
+  items: [{ href: "/beheer", label: "Beheer", desc: "Testers uitnodigen en toegang regelen", Icon: ShieldIcon }],
+};
+
+export default async function MorePage() {
+  const supabase = await createClient();
+  const { data: admin } = await supabase.from("app_admins").select("user_id").maybeSingle();
+  const groups = admin ? [...GROUPS, ADMIN] : GROUPS;
   return (
     <>
       <h1>Meer</h1>
-      {GROUPS.map((g, i) => (
+      {groups.map((g, i) => (
         <section key={g.title} className="menu-group" aria-labelledby={`meer-${i}`}>
           <h2 id={`meer-${i}`}>{g.title}</h2>
           <ul className="menu-list">

@@ -1,6 +1,7 @@
 import { NOTE_TYPE_LABELS, NoteStatus, NoteType } from "@bk/schemas";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ResponsiveDetails } from "@/components/ResponsiveDetails";
 import { z } from "zod";
 import { getBooks } from "@/lib/bible-data";
 import { listCollections, timeline } from "@/lib/collections/data";
@@ -41,6 +42,7 @@ export default async function TimelinePage({ searchParams }: Props) {
   const groups = groupByYear(entries.filter((e) => e.hasEventDate));
   const undated = entries.filter((e) => !e.hasEventDate).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const filtered = Object.values(f).some(Boolean);
+  const activeCount = Object.values(f).filter(Boolean).length;
   const tree = flatten(buildTree(collections));
   const themes = tree.filter((c) => c.collectionType === "thema");
   const others = tree.filter((c) => c.collectionType !== "thema");
@@ -79,6 +81,7 @@ export default async function TimelinePage({ searchParams }: Props) {
         bijwerkte, staat er apart bij.
       </p>
 
+      <ResponsiveDetails className="search-filters list-filters" open={filtered} summary={<>Filters{filtered ? ` (${activeCount} actief)` : ""}</>}>
       <form className="timeline-filters" method="get" role="search" aria-label="Tijdlijn filteren">
         <div className="field">
           <label htmlFor="van">Vanaf</label>
@@ -159,6 +162,7 @@ export default async function TimelinePage({ searchParams }: Props) {
           {filtered && <Link href="/timeline">Filters wissen</Link>}
         </div>
       </form>
+      </ResponsiveDetails>
 
       {entries.length === 0 ? (
         <p className="placeholder">{filtered ? "Geen notities gevonden met dit filter." : "Je hebt nog geen notities."}</p>

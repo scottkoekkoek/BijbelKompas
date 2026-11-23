@@ -82,3 +82,19 @@ describe("notes per verse (BK-031)", () => {
     });
   });
 });
+
+describe("notes per verse without the translation's text (Ronde 3, Joh 16:12–14)", () => {
+  it("finds a note linked to verse 13 when asking for 12–14, also where the translation has no text", async () => {
+    const block = randomUUID();
+    await as(db, { kind: "user", id: alice }, async (q) => {
+      const v13 = { ...link(block, 13, 13, "Johannes 16:13"), book: "JHN", start_chapter: 16, end_chapter: 16 };
+      const id = await noteWithLinks(q, "De Geest der waarheid", [v13], [{ id: block, text: "Hij zal u in de waarheid leiden." }]);
+      // TEST has no text for John: the range is resolved in canonical numbering, as when saving
+      const hit = (await q.query("select * from public.passage_notes('TEST', 'JHN', 16, 12, 14)")).rows;
+      expect(hit).toEqual([expect.objectContaining({ note_id: id, block_id: block, reference_text: "Johannes 16:13" })]);
+      expect((await q.query("select * from public.passage_notes('TEST', 'JHN', 16, 14, 15)")).rows).toEqual([]);
+      await q.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: bob, role: "authenticated" })]);
+      expect((await q.query("select * from public.passage_notes('TEST', 'JHN', 16, 12, 14)")).rows).toEqual([]);
+    });
+  });
+});

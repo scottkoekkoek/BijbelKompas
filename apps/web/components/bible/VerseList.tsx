@@ -35,6 +35,11 @@ type Props = {
 };
 
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
+/** How many linked notes the selection bar shows before pointing to Mijn studie. */
+const LINKED_PREVIEW = 3;
+const firstWord = (t: string) => /^\S*/.exec(t)?.[0] ?? "";
+const restOf = (t: string) => t.slice(firstWord(t).length);
+
 export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null, read = [], explainWith = null }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
@@ -166,22 +171,28 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             data-verse={v.verse}
             title={h?.annotation || undefined}
           >
-            <button
-              type="button"
-              className="verse-num"
-              aria-pressed={isSelected(v.verse)}
-              aria-label={`Vers ${v.verse} selecteren`}
-              onClick={() => toggle(v.verse)}
-            >
-              {v.verse}
-            </button>
-            {noted.includes(v.verse) && (
-              <span className="note-dot" title="Er is een notitie bij dit vers">
-                <span className="visually-hidden">(notitie)</span>
+            {/* the verse number and the first word stay on one line */}
+            <span className="verse-start">
+              <button
+                type="button"
+                className="verse-num"
+                aria-pressed={isSelected(v.verse)}
+                aria-label={`Vers ${v.verse} selecteren`}
+                onClick={() => toggle(v.verse)}
+              >
+                {v.verse}
+              </button>
+              {noted.includes(v.verse) && (
+                <span className="note-dot" title="Er is een notitie bij dit vers">
+                  <span className="visually-hidden">(notitie)</span>
+                </span>
+              )}{" "}
+              <span className="verse-text" onClick={() => toggle(v.verse)}>
+                {firstWord(v.text)}
               </span>
-            )}{" "}
+            </span>
             <span className="verse-text" onClick={() => toggle(v.verse)}>
-              {v.text}
+              {restOf(v.text)}
             </span>
             {h && <span className="visually-hidden"> (gemarkeerd{h.annotation ? `: ${h.annotation}` : ""})</span>}
             {isRead(v.verse) && <span className="visually-hidden"> (gelezen)</span>}{" "}
@@ -219,12 +230,17 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             />
           </div>
           <div className="selection-actions tool-actions">
-            <button type="button" className="button ghost" onClick={() => copy("reference")}>
-              Kopieer verwijzing
-            </button>
-            <button type="button" className="button ghost" onClick={() => copy("text")}>
-              Kopieer tekst
-            </button>
+            <details className="copy-menu">
+              <summary className="button ghost">Kopiëren</summary>
+              <div className="copy-menu-items">
+                <button type="button" className="button ghost" onClick={() => copy("reference")}>
+                  Kopieer verwijzing
+                </button>
+                <button type="button" className="button ghost" onClick={() => copy("text")}>
+                  Kopieer tekst
+                </button>
+              </div>
+            </details>
             <button type="button" className="button ghost" onClick={() => setMarking((m) => !m)} aria-expanded={marking}>
               Markeren
             </button>
@@ -247,7 +263,7 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
             <section className="verse-notes" aria-label="Notities bij deze verzen">
               <h2>Notities bij deze verzen</h2>
               <ul>
-                {linked.map((n) => (
+                {linked.slice(0, LINKED_PREVIEW).map((n) => (
                   <li key={`${n.noteId}-${n.blockId}`}>
                     <Link href={`/notes/${n.noteId}#blok-${n.blockId}`}>{n.title || "Naamloze notitie"}</Link>
                     <span className="muted"> · {n.reference}</span>
@@ -255,6 +271,11 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
                   </li>
                 ))}
               </ul>
+              {linked.length > LINKED_PREVIEW && (
+                <button type="button" className="button ghost small" onClick={() => setPanel("studie")}>
+                  Alle {linked.length} notities in Mijn studie
+                </button>
+              )}
             </section>
           )}
         </div>

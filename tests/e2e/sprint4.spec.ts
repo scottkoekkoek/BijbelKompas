@@ -1,7 +1,7 @@
 // Sprint 4: sermon details (BK-019), templates (BK-020), keyword search (BK-034, BK-035, BK-038).
 // Uses only the fictitious e2e user and the fictitious TEST text.
 import { expect, test, type Page } from "@playwright/test";
-import { login } from "./fixtures";
+import { login, openNoteDetails } from "./fixtures";
 
 const unique = (label: string) => `${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const word = () => `zoekwoord${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -71,6 +71,7 @@ test("sermon details are saved with the note and help to search", async ({ page 
   await login(page, "/notes/new");
   await page.getByRole("button", { name: "Begin met Preek", exact: true }).click();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
+  await openNoteDetails(page);
   await expect(page.getByRole("group", { name: "Preekgegevens" })).toBeVisible();
   await page.getByLabel("Spreker").fill(speaker);
   await page.getByLabel("Kerk of gemeente").fill("Fictieve Kerk");
@@ -81,6 +82,7 @@ test("sermon details are saved with the note and help to search", async ({ page 
   await expect(saveState(page)).toHaveText("Opgeslagen");
 
   await page.reload();
+  await openNoteDetails(page);
   await expect(page.getByLabel("Spreker")).toHaveValue(speaker);
   await expect(page.getByLabel("Dienst")).toHaveValue("Ochtenddienst");
 

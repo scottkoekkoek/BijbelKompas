@@ -67,6 +67,16 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
   const [eventDate, setEventDate] = useState(note.eventDate ?? "");
   const [sermon, setSermon] = useState<SermonDetails>(note.sermon);
   const [status, setStatus] = useState<NoteStatus>(note.status);
+  // Ronde 3 §2: a finished note opens in the reading view. While it is open here, the address says
+  // "bewerken", so a refresh (or a reload) keeps the editor instead of switching mid-sentence.
+  useEffect(() => {
+    if (status !== "afgerond" || offline) return;
+    const url = new URL(window.location.href);
+    if (!url.pathname.startsWith(`/notes/${note.id}`) || url.searchParams.get("bewerken") === "1") return;
+    url.searchParams.set("bewerken", "1");
+    window.history.replaceState(window.history.state, "", url);
+  }, [status, note.id, offline]);
+  const [detailsOpen, setDetailsOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches);
   const [saveState, setSaveState] = useState<SaveState>(unsynced ? "lokaal" : "opgeslagen");
   const [message, setMessage] = useState("");
   const [revision, setRevision] = useState(note.currentRevision);
@@ -360,6 +370,13 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
         ? "Lokaal opgeslagen · log opnieuw in om te versturen"
         : STATE_TEXT[saveState];
   const locked = saveState === "conflict" || elsewhere !== "no";
+  const detailsSummary = [
+    NOTE_TYPE_LABELS[noteType],
+    eventDate ? new Date(`${eventDate}T00:00:00Z`).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : null,
+    noteType === "preek" ? sermon.speaker : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="note-editor">
@@ -375,54 +392,66 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
           )}
         </div>
       )}
-      <fieldset className="note-meta plain" disabled={elsewhere !== "no"}>
+      <fieldset className="note-meta plain note-head" disabled={elsewhere !== "no"}>
         <div className="field note-title">
           <label htmlFor={`${ids}-title`} className="visually-hidden">Titel</label>
           <input id={`${ids}-title`} type="text" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder="Naamloze notitie" />
         </div>
-        <div className="field">
-          <label htmlFor={`${ids}-type`}>Soort</label>
-          <select id={`${ids}-type`} value={noteType} onChange={(e) => setNoteType(NoteType.parse(e.target.value))}>
-            {NoteType.options.map((t) => (
-              <option key={t} value={t}>
-                {NOTE_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor={`${ids}-date`}>Datum van preek of gebeurtenis</label>
-          <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} aria-describedby={`${ids}-date-hint`} />
-          <p id={`${ids}-date-hint`} className="hint">Optioneel. Hiermee komt de notitie op de juiste plek in de tijdlijn.</p>
+        <div className="note-status-row">
+          <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
+          <span className={`save-state ${saveState}`} role="status" aria-live="polite">
+            {waitingText}
+          </span>
+          {revision > 0 && !offline && (
+            <Link href={`/notes/${note.id}/versies`} className="muted-link">
+              {revision} {revision === 1 ? "versie" : "versies"}
+            </Link>
+          )}
         </div>
       </fieldset>
 
-      {noteType === "preek" && (
-        <fieldset className="sermon-fields" disabled={elsewhere !== "no"}>
-          <legend>Preekgegevens</legend>
-          <SermonField id={`${ids}-speaker`} label="Spreker" value={sermon.speaker} options={suggestions.speakers} max={120}
-            onChange={(v) => setSermon((s) => ({ ...s, speaker: v }))} />
-          <SermonField id={`${ids}-org`} label="Kerk of gemeente" value={sermon.organization} options={suggestions.organizations} max={120}
-            onChange={(v) => setSermon((s) => ({ ...s, organization: v }))} />
-          <SermonField id={`${ids}-series`} label="Serie" value={sermon.series} options={suggestions.series} max={120}
-            onChange={(v) => setSermon((s) => ({ ...s, series: v }))} />
-          <SermonField id={`${ids}-service`} label="Dienst" value={sermon.serviceType} options={SERVICE_TYPE_SUGGESTIONS} max={60}
-            onChange={(v) => setSermon((s) => ({ ...s, serviceType: v }))} />
+      {/* less used fields: open on wide screens, folded on a phone so the text gets the room */}
+      <details className="note-details" open={detailsOpen} onToggle={(e) => setDetailsOpen(e.currentTarget.open)}>
+        <summary>
+          <span className="note-details-label">Gegevens</span>
+          <span className="note-details-value">{detailsSummary}</span>
+        </summary>
+        <fieldset className="note-meta plain note-fields" disabled={elsewhere !== "no"}>
+          <legend className="visually-hidden">Soort en datum</legend>
+          <div className="field">
+            <label htmlFor={`${ids}-type`}>Soort</label>
+            <select id={`${ids}-type`} value={noteType} onChange={(e) => setNoteType(NoteType.parse(e.target.value))}>
+              {NoteType.options.map((t) => (
+                <option key={t} value={t}>
+                  {NOTE_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={`${ids}-date`}>Datum van preek of gebeurtenis</label>
+            <input id={`${ids}-date`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} aria-describedby={`${ids}-date-hint`} />
+            <p id={`${ids}-date-hint`} className="hint">Optioneel. Hiermee komt de notitie op de juiste plek in de tijdlijn.</p>
+          </div>
         </fieldset>
-      )}
+
+        {noteType === "preek" && (
+          <fieldset className="sermon-fields" disabled={elsewhere !== "no"}>
+            <legend>Preekgegevens</legend>
+            <SermonField id={`${ids}-speaker`} label="Spreker" value={sermon.speaker} options={suggestions.speakers} max={120}
+              onChange={(v) => setSermon((s) => ({ ...s, speaker: v }))} />
+            <SermonField id={`${ids}-org`} label="Kerk of gemeente" value={sermon.organization} options={suggestions.organizations} max={120}
+              onChange={(v) => setSermon((s) => ({ ...s, organization: v }))} />
+            <SermonField id={`${ids}-series`} label="Serie" value={sermon.series} options={suggestions.series} max={120}
+              onChange={(v) => setSermon((s) => ({ ...s, series: v }))} />
+            <SermonField id={`${ids}-service`} label="Dienst" value={sermon.serviceType} options={SERVICE_TYPE_SUGGESTIONS} max={60}
+              onChange={(v) => setSermon((s) => ({ ...s, serviceType: v }))} />
+          </fieldset>
+        )}
+
+      </details>
 
       <div className="doc-bar">
-      <div className="note-status-row">
-        <span className={`badge ${status}`}>{status === "afgerond" ? "Afgerond" : "Concept"}</span>
-        <span className={`save-state ${saveState}`} role="status" aria-live="polite">
-          {waitingText}
-        </span>
-        {revision > 0 && !offline && (
-          <Link href={`/notes/${note.id}/versies`} className="muted-link">
-            {revision} {revision === 1 ? "versie" : "versies"}
-          </Link>
-        )}
-      </div>
       <div className="note-actions">
         <button type="button" className="button secondary" disabled={locked} onClick={() => void save({ reason: "handmatig" })} aria-describedby={`${ids}-save-hint`}>
           Opslaan als versie
@@ -436,9 +465,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
             Terugzetten naar concept
           </button>
         )}
-        {status === "afgerond" && noteType === "preek" && !offline && (
-          <Link className="button" href={`/notes/${note.id}/preek`}>
-            Open preekweergave
+        {status === "afgerond" && !offline && (
+          <Link className="button ghost" href={`/notes/${note.id}`}>
+            Naar leesweergave
           </Link>
         )}
       </div>
