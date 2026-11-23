@@ -508,3 +508,73 @@ export async function outlineNote(db: Db, provider: AiProvider, noteId: string):
     throw err;
   }
 }
+
+// Ronde 3 §5: the summary saved with its source note -----------------------------------------
+export type NoteSummarySection = {
+  noteId: string;
+  outlineId: string | null;
+  summary: string;
+  mainThought: string;
+  points: OutlinePoint[];
+  application: string;
+  model: string;
+  savedAt: string;
+  /** the note version it was made from, and the note's version now */
+  sourceRevision: number;
+  currentRevision: number;
+  /** the note's text changed after the summary was made */
+  stale: boolean;
+};
+type SummaryRow = {
+  note_id: string;
+  outline_id: string | null;
+  source_revision: number;
+  content_hash: string;
+  summary: string;
+  main_thought: string;
+  points: OutlinePoint[];
+  application: string;
+  model_version: string;
+  saved_at: string;
+};
+
+export async function getNoteSummary(db: Db, noteId: string): Promise<NoteSummarySection | null> {
+  const [s, note, hash] = await Promise.all([
+    db.from("note_summaries").select("*").eq("note_id", noteId).maybeSingle(),
+    db.from("notes").select("current_revision").eq("id", noteId).maybeSingle(),
+    currentHash(db, noteId),
+  ]);
+  if (s.error) throw s.error;
+  if (note.error) throw note.error;
+  if (!s.data) return null;
+  const r = s.data as SummaryRow;
+  return {
+    noteId: r.note_id,
+    outlineId: r.outline_id,
+    summary: r.summary,
+    mainThought: r.main_thought,
+    points: r.points,
+    application: r.application,
+    model: r.model_version,
+    savedAt: new Date(r.saved_at).toISOString(),
+    sourceRevision: r.source_revision,
+    currentRevision: note.data?.current_revision ?? r.source_revision,
+    stale: hash !== null && r.content_hash !== hash,
+  };
+}
+
+/** Saves (or deliberately replaces) the note's summary from one of its outlines. */
+export async function saveNoteSummary(db: Db, noteId: string, outlineId: string): Promise<NoteSummarySection | null> {
+  const { error } = await db.rpc("save_note_summary", { p_note_id: noteId, p_outline_id: outlineId });
+  if (error) {
+    if (error.code === "42501") return null;
+    throw error;
+  }
+  return getNoteSummary(db, noteId);
+}
+
+export async function deleteNoteSummary(db: Db, noteId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("delete_note_summary", { p_note_id: noteId });
+  if (error) throw error;
+  return data === true;
+}

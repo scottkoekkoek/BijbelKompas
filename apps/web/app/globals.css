@@ -1673,8 +1673,9 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   html[data-leesfocus="1"] .sermon-passage-toggle { display: none; }
 }
 @media (max-width: 767px) {
-  .sermon-head { flex-direction: column; }
-  .sermon-edit { align-self: stretch; justify-content: center; }
+  .sermon-head { flex-direction: column; gap: var(--space-2); }
+  .sermon-head-text { flex: 0 0 auto; }
+  .sermon-edit { align-self: flex-start; }
 }
 
 /* ---- trash for drafts (Ronde 3 §3) ---- */
@@ -1688,3 +1689,11 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 .undo-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 .list-footer-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
 .list-footer-links a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+
+/* ---- summary saved with its note (Ronde 3 §5) ---- */
+.linked-summary { padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
+.linked-summary h2 { margin-top: 0; font-size: var(--text-lg); }
+.linked-summary-main { font-family: var(--font-display); font-size: var(--text-md); font-style: italic; }
+.linked-summary .alert { margin: 0 0 var(--space-4); }
+.linked-summary .alert p { margin: 0 0 var(--space-2); }
+.linked-summary ol { padding-left: 1.3em; }
