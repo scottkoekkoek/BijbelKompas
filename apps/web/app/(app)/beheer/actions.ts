@@ -82,3 +82,27 @@ export async function setAccess(formData: FormData): Promise<void> {
   if (!allow) await admin.rpc("pilot_end_sessions", { p_user_id: id.data });
   revalidatePath("/beheer");
 }
+
+export type BudgetState = { ok?: boolean; error?: string } | undefined;
+
+const BudgetInput = z.object({
+  user: z.coerce.number().min(0, "Kies een bedrag van 0 of meer.").max(100, "Per account kan hoogstens € 100 per maand."),
+  pilot: z.coerce.number().min(0, "Kies een bedrag van 0 of meer.").max(1000, "Voor de hele pilot kan hoogstens € 1.000 per maand."),
+});
+
+/** Ronde 3 §6: the AI budget per account per month and the shared pilot budget (checked in the database). */
+export async function setAiBudget(_prev: BudgetState, formData: FormData): Promise<BudgetState> {
+  const euros = (v: FormDataEntryValue | null) => String(v ?? "").trim().replace(",", ".");
+  const parsed = BudgetInput.safeParse({ user: euros(formData.get("user")), pilot: euros(formData.get("pilot")) });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Controleer de bedragen." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pilot_set_ai_budget", { p_user_limit: parsed.data.user, p_pilot_limit: parsed.data.pilot });
+  if (error) {
+    if (error.code === "42501") return { error: "Alleen een beheerder kan dit." };
+    console.error(JSON.stringify({ level: "error", route: "beheer/setAiBudget", code: error.code ?? null }));
+    return { error: "Het budget kon niet worden opgeslagen." };
+  }
+  revalidatePath("/beheer");
+  revalidatePath("/settings");
+  return { ok: true };
+}

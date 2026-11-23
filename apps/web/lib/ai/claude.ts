@@ -228,9 +228,9 @@ export function claudeProvider(opts: { client: ClaudeClient; model?: string }): 
 }
 
 /** Built from the environment; null when the key or the model is missing or unknown. */
-export function claudeFromEnv(env: Record<string, string | undefined>): AiProvider | null {
+export function claudeFromEnv(env: Record<string, string | undefined>, chosen?: string): AiProvider | null {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
-  const model = env.AI_MODEL?.trim() || DEFAULT_MODEL;
+  const model = chosen || env.AI_MODEL?.trim() || DEFAULT_MODEL;
   if (!apiKey || !PRICES[model]) return null;
   return claudeProvider({ client: new Anthropic({ apiKey, timeout: 120_000, maxRetries: 1 }), model });
 }

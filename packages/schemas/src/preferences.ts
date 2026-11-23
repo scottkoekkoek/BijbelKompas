@@ -10,6 +10,8 @@ export const BIBLE_FONT_MAX = 24;
 export const Preferences = z.object({
   defaultTranslationId: z.uuid().nullable(),
   aiEnabled: z.boolean(),
+  /** chosen AI model id; null = the server default. The server checks it against its allowed list. */
+  aiModel: z.string().regex(/^[a-z0-9][a-z0-9.-]{0,79}$/).nullable(),
   autoAnalysis: z.boolean(),
   theme: Theme,
   bibleFontSize: z.number().int().min(BIBLE_FONT_MIN).max(BIBLE_FONT_MAX),
@@ -29,6 +31,7 @@ export type PreferencesPatch = z.infer<typeof PreferencesPatch>;
 export const DEFAULT_PREFERENCES: Omit<Preferences, "updatedAt"> = {
   defaultTranslationId: null,
   aiEnabled: false,
+  aiModel: null,
   autoAnalysis: false,
   theme: "system",
   bibleFontSize: 18,

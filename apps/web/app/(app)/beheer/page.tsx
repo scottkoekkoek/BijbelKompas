@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revokeLink, setAccess } from "./actions";
+import { BudgetForm } from "./BudgetForm";
 import { LinkForm } from "./LinkForm";
 
 export const metadata: Metadata = { title: "Beheer" };
@@ -13,6 +14,7 @@ type Invitation = { id: string; kind: "uitnodiging" | "herstel"; email: string; 
 type Account = { user_id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null; is_admin: boolean; notes: number };
 
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Amsterdam" });
+const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 const fmt = (d: string | null) => (d ? dateFmt.format(new Date(d)) : "nog niet");
 
 function linkStatus(i: Invitation, now: number): { label: string; tone: string; open: boolean } {
@@ -26,11 +28,15 @@ export default async function AdminPage() {
   const supabase = await createClient();
   const { data: isAdmin } = await supabase.rpc("is_app_admin");
   if (isAdmin !== true) notFound();
-  const [{ data: me }, invitations, accounts] = await Promise.all([
+  const [{ data: me }, invitations, accounts, settings, budget] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("pilot_invitations").select("id, kind, email, created_at, expires_at, revoked_at, used_at").order("created_at", { ascending: false }).limit(100),
     supabase.rpc("pilot_accounts"),
+    supabase.from("app_settings").select("ai_user_limit_eur, ai_pilot_limit_eur").maybeSingle(),
+    supabase.rpc("ai_budget").maybeSingle(),
   ]);
+  const limits = (settings.data ?? { ai_user_limit_eur: 5, ai_pilot_limit_eur: 25 }) as { ai_user_limit_eur: number; ai_pilot_limit_eur: number };
+  const pilotUsed = Number((budget.data as { pilot_used_eur?: number } | null)?.pilot_used_eur ?? 0);
   const keySet = createAdminClient() !== null;
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" decides whether a link has expired
   const now = Date.now();
@@ -128,6 +134,15 @@ export default async function AdminPage() {
           Toegang intrekken logt het account uit en blokkeert inloggen. De notities en andere gegevens blijven bewaard (niemand anders kan ze zien) tot je
           de toegang herstelt of het account in Supabase verwijdert; dat laatste wist alles van dat account.
         </p>
+      </section>
+
+      <section className="settings-section" aria-labelledby="ai-budget">
+        <h2 id="ai-budget">AI-budget</h2>
+        <p className="page-intro">
+          Deze maand is door alle accounts samen {eur.format(pilotUsed)} gebruikt. Nieuwe AI-taken stoppen bij 90% van het budget per account of van
+          het gezamenlijke budget, wat het eerst bereikt wordt. Wie een ander model kiest, houdt hetzelfde budget.
+        </p>
+        <BudgetForm userLimit={Number(limits.ai_user_limit_eur)} pilotLimit={Number(limits.ai_pilot_limit_eur)} />
       </section>
     </>
   );

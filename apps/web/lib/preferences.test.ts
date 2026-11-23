@@ -8,6 +8,7 @@ describe("preferences mapping", () => {
       fromRow({
         default_translation_id: null,
         ai_enabled: false,
+        ai_model: null,
         auto_analysis: false,
         theme: "system",
         bible_font_size: 18,
@@ -18,6 +19,7 @@ describe("preferences mapping", () => {
     ).toEqual({
       defaultTranslationId: null,
       aiEnabled: false,
+      aiModel: null,
       autoAnalysis: false,
       theme: "system",
       bibleFontSize: 18,
@@ -29,6 +31,10 @@ describe("preferences mapping", () => {
 
   it("maps a patch to columns", () => {
     expect(toRowUpdate({ theme: "dark", bibleFontSize: 20 })).toEqual({ theme: "dark", bible_font_size: 20 });
+  });
+
+  it("maps the chosen AI model", () => {
+    expect(toRowUpdate({ aiModel: null })).toEqual({ ai_model: null });
   });
 
   it("switches automatic analysis off together with AI", () => {

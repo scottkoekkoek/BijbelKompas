@@ -6,7 +6,15 @@ import { checkedSources } from "./sources";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
-export type AiBudget = { month: string; limitEur: number; stopAtEur: number; usedEur: number; enabled: boolean };
+export type AiBudget = {
+  month: string;
+  limitEur: number;
+  stopAtEur: number;
+  usedEur: number;
+  enabled: boolean;
+  /** Ronde 3 §6: the budget shared by all pilot accounts together */
+  pilot: { limitEur: number; stopAtEur: number; usedEur: number };
+};
 export type AiSuggestion = {
   id: string;
   type: "verband" | "onderwerp" | "vraag";
@@ -27,8 +35,18 @@ export type AiSuggestion = {
 export async function getBudget(db: Db): Promise<AiBudget> {
   const { data, error } = await db.rpc("ai_budget").single();
   if (error) throw error;
-  const b = data as { month: string; limit_eur: number; stop_at_eur: number; used_eur: number; enabled: boolean };
-  return { month: b.month, limitEur: Number(b.limit_eur), stopAtEur: Number(b.stop_at_eur), usedEur: Number(b.used_eur), enabled: b.enabled };
+  const b = data as {
+    month: string; limit_eur: number; stop_at_eur: number; used_eur: number; enabled: boolean;
+    pilot_limit_eur: number; pilot_stop_at_eur: number; pilot_used_eur: number;
+  };
+  return {
+    month: b.month,
+    limitEur: Number(b.limit_eur),
+    stopAtEur: Number(b.stop_at_eur),
+    usedEur: Number(b.used_eur),
+    enabled: b.enabled,
+    pilot: { limitEur: Number(b.pilot_limit_eur), stopAtEur: Number(b.pilot_stop_at_eur), usedEur: Number(b.pilot_used_eur) },
+  };
 }
 
 /** Suggestions that involve a note (as source or as target), newest first, with whether they are outdated. */
