@@ -456,9 +456,9 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
             Terugzetten naar concept
           </button>
         )}
-        {status === "afgerond" && noteType === "preek" && !offline && (
-          <Link className="button" href={`/notes/${note.id}/preek`}>
-            Open preekweergave
+        {status === "afgerond" && !offline && (
+          <Link className="button ghost" href={`/notes/${note.id}`}>
+            Naar leesweergave
           </Link>
         )}
       </div>

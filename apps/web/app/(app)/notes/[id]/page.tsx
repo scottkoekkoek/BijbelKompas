@@ -14,8 +14,9 @@ import { collectionsOfNote, listCollections, questionsOfNote } from "@/lib/colle
 import { buildTree, flatten } from "@/lib/collections/tree";
 import { getNote, getSermonSuggestions } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
+import { NoteReading } from "./NoteReading";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ bewerken?: string }> };
 
 async function load(rawId: string) {
   const id = z.uuid().safeParse(rawId);
@@ -29,10 +30,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: r?.note?.title || "Notitie" };
 }
 
-export default async function NotePage({ params }: Props) {
+export default async function NotePage({ params, searchParams }: Props) {
   const r = await load((await params).id);
   if (!r?.note) notFound();
   const { supabase, note } = r;
+  const { bewerken } = await searchParams;
+  // Ronde 3 §2: a finished note opens to read; editing is an explicit step. Drafts open in the editor.
+  if (note.status === "afgerond" && bewerken !== "1") return <NoteReading supabase={supabase} note={note} />;
   const [books, translations, suggestions, collections, memberOf, questions, prefs] = await Promise.all([
     getBooks(supabase),
     getTranslations(supabase),

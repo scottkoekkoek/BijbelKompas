@@ -51,10 +51,9 @@ test("a finished sermon opens in a calm reading view that changes nothing (featu
   ]);
   const before = await noteJson(page, id);
 
-  // from the finished sermon
-  await page.goto(`/notes/${id}`);
-  await page.getByRole("link", { name: "Open preekweergave" }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${id}/preek$`));
+  // a finished sermon opens straight in the reading view (Ronde 3 §2); the old address still works
+  await page.goto(`/notes/${id}/preek`);
+  await expect(page).toHaveURL(new RegExp(`/notes/${id}$`));
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
   const view = page.locator(".sermon-text");
   await expect(view.getByRole("heading", { level: 2, name: "Eerste punt" })).toBeVisible();
@@ -103,10 +102,10 @@ test("a finished sermon opens in a calm reading view that changes nothing (featu
 
   // "Open in Bijbel" opens the exact verses, with a way back to the sermon
   await panel.getByRole("link", { name: "Open in Bijbel" }).click();
-  await expect(page).toHaveURL(new RegExp(`/bible/GEN/1\\?v=TEST&vers=1-2&terug=%2Fnotes%2F${id}%2Fpreek#v1$`));
+  await expect(page).toHaveURL(new RegExp(`/bible/GEN/1\\?v=TEST&vers=1-2&terug=%2Fnotes%2F${id}#v1$`));
   await expect(page.locator("#v1")).toHaveClass(/target/);
-  await page.getByRole("link", { name: "Terug naar de preek" }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${id}/preek$`));
+  await page.getByRole("link", { name: `Terug naar ${title}` }).click();
+  await expect(page).toHaveURL(new RegExp(`/notes/${id}$`));
 
   // a passage far down in the sermon: back from the reader at the same place
   const late = page.locator(".sermon-text").getByRole("link", { name: "Genesis 1:3 lezen" });
@@ -117,13 +116,15 @@ test("a finished sermon opens in a calm reading view that changes nothing (featu
   expect(place).toBeGreaterThan(200);
   await late.click();
   await expect(page).toHaveURL(/\/bible\/GEN\/1\?v=TEST&vers=3&terug=/);
-  await page.getByRole("link", { name: "Terug naar de preek" }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${id}/preek$`));
+  await page.getByRole("link", { name: `Terug naar ${title}` }).click();
+  await expect(page).toHaveURL(new RegExp(`/notes/${id}$`));
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThan(place - 60);
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(place + 60);
 
-  await page.getByRole("link", { name: "Terug naar notitie" }).click();
-  await expect(page).toHaveURL(new RegExp(`/notes/${id}$`));
+  // editing is an explicit step
+  await page.getByRole("link", { name: "Bewerken" }).click();
+  await expect(page).toHaveURL(new RegExp(`/notes/${id}\\?bewerken=1$`));
+  await expect(page.getByLabel("Titel")).toHaveValue(title);
 
   // reading and the font size changed nothing about the note
   const after = await noteJson(page, id);
@@ -136,7 +137,8 @@ test("only a finished sermon has the view; one without a passage reads in full (
   await login(page, "/dashboard");
   const draft = await sermon(page, unique("Preek in concept"), [para("Nog niet af.")], false);
   await page.goto(`/notes/${draft}`);
-  await expect(page.getByRole("link", { name: "Open preekweergave" })).toHaveCount(0);
+  await expect(page.getByLabel("Titel")).toBeVisible(); // a draft opens in the editor
+  await expect(page.getByRole("link", { name: "Naar leesweergave" })).toHaveCount(0);
   await page.goto(`/notes/${draft}/preek`);
   await expect(page.getByText("De preekweergave opent zodra de preek is afgerond.", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Terug naar notitie" })).toHaveAttribute("href", `/notes/${draft}`);

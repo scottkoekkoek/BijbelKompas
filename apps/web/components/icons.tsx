@@ -2,6 +2,13 @@
 // Every icon here is decorative (aria-hidden); the link or button around it carries the name.
 import {
   Archive,
+  ArchiveRestore,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Shield,
+  Trash2,
+  Undo2,
+  UserPlus,
   ArrowRight,
   Columns2,
   ExternalLink,
@@ -60,6 +67,13 @@ export const DownloadIcon = make(Download, 20);
 export const CompareIcon = make(Columns2, 16);
 export const ExternalIcon = make(ExternalLink, 13);
 export const SparklesIcon = make(Sparkles, 20);
+export const TrashIcon = make(Trash2, 18);
+export const UndoIcon = make(Undo2, 18);
+export const RestoreIcon = make(ArchiveRestore, 18);
+export const MenuHideIcon = make(PanelLeftClose, 18);
+export const MenuShowIcon = make(PanelLeftOpen, 18);
+export const ShieldIcon = make(Shield, 22);
+export const UserPlusIcon = make(UserPlus, 18);
 
 /** The app mark: a compass on the evergreen tile. */
 export function BrandMark() {

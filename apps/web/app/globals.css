@@ -1650,3 +1650,29 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   .note-actions .button { justify-content: center; }
 }
 .note-details .note-fields { align-items: flex-start; }
+
+/* ---- reading view (Ronde 3 §2): every finished note, sermons included ---- */
+.doc-block > :first-child { margin-top: 0; }
+.doc-block > :last-child { margin-bottom: 0; }
+.doc-block:target { animation: found 6s ease-out; border-radius: 4px; scroll-margin-top: var(--space-8); }
+.sermon-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.sermon-head-text { min-width: 0; flex: 1 1 320px; }
+.sermon-edit { flex: 0 0 auto; }
+.sermon-menu-toggle { display: none; }
+.reading-panels { margin-top: var(--space-10); max-width: 38em; display: grid; gap: var(--space-3); }
+.reading-panels > * { margin: 0; }
+@media (min-width: 768px) {
+  .sermon-menu-toggle { display: inline-flex; margin-left: auto; }
+  html[data-leesfocus="1"] .shell { grid-template-columns: minmax(0, 1fr); }
+  html[data-leesfocus="1"] .sidebar { display: none; }
+}
+@media (min-width: 900px) {
+  /* with the menu folded away a tablet on its side has room for text and passage side by side */
+  html[data-leesfocus="1"] .sermon-view.has-passage .sermon-layout { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; }
+  html[data-leesfocus="1"] .sermon-passage { display: block; order: 0; position: sticky; top: var(--space-6); }
+  html[data-leesfocus="1"] .sermon-passage-toggle { display: none; }
+}
+@media (max-width: 767px) {
+  .sermon-head { flex-direction: column; }
+  .sermon-edit { align-self: stretch; justify-content: center; }
+}

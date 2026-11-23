@@ -10,10 +10,18 @@ export function DocumentView({ doc, back, className = "note-body readonly" }: { 
     <div className={className}>
       {((doc.content ?? []) as PMNode[]).map((n, i) => {
         const passages = passagesOf(n);
-        if (passages.length === 0) return render(n, i, back);
+        // top-level blocks keep their id, so a link to "#blok-<id>" (search, AI sources) lands there
+        const blockId = typeof n.attrs?.blockId === "string" ? n.attrs.blockId : null;
+        const el = render(n, i, back);
+        const block = blockId && el ? (
+          <div key={i} id={`blok-${blockId}`} className="doc-block">
+            {el}
+          </div>
+        ) : el;
+        if (passages.length === 0) return block;
         return (
           <Fragment key={i}>
-            {render(n, i, back)}
+            {block}
             <p className="block-passages">
               Gekoppeld aan:{" "}
               {passages.map((p, j) => (
