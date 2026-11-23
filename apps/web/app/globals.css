@@ -1781,3 +1781,6 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   .topbar .sync-indicator.ok { min-width: 44px; justify-content: center; }
   .topbar .sync-indicator.ok .sync-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+/* long book names (1 Thessalonicenzen) wrap at a hyphen, not in the middle of a syllable */
+.book-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); }
+.book-list-name { overflow-wrap: normal; hyphens: auto; }
