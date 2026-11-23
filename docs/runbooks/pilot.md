@@ -8,7 +8,8 @@ Voor de beheerder (Scott). Deel nooit sleutels of wachtwoorden in een chat, issu
    laatste back-up in GitHub Actions groen is.
 2. **Migraties.** Draai in GitHub Actions "Migraties naar productie". Nieuw in deze ronde:
    `20261123000001_prullenbak`, `20261123000002_samenvatting_bij_notitie`,
-   `20261123000003_besloten_pilot` en `20261123000004_ai_modelkeuze`. Ze voegen alleen toe.
+   `20261123000003_besloten_pilot`, `20261123000004_ai_modelkeuze` en
+   `20261123000005_passage_notes_zonder_tekst`. Ze voegen toe of verbeteren een functie; er wordt niets gewist.
    - De pilotmigratie maakt het enige bestaande account (jij) beheerder. Staat er meer dan één
      account, dan wordt niemand gekozen; maak jezelf dan beheerder in de SQL-editor van Supabase:
      `insert into public.app_admins (user_id) select id from auth.users where email = '<jouw adres>';`

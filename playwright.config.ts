@@ -28,7 +28,14 @@ export default defineConfig({
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
     // Sprint 11: the local, fictitious AI provider (never in production, sends nothing anywhere)
-    env: { ...process.env, AI_PROVIDER: "fictief" } as Record<string, string>,
+    // Ronde 3 pilot: invitation links create accounts with the secret key of the LOCAL stack only
+    env: {
+      ...process.env,
+      AI_PROVIDER: "fictief",
+      SUPABASE_SECRET_KEY:
+        process.env.SUPABASE_SECRET_KEY ??
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU",
+    } as Record<string, string>,
     timeout: 120_000,
   },
 });
