@@ -1646,8 +1646,9 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 .note-actions .button:not(.secondary):not(.ghost) { box-shadow: var(--shadow-sm); }
 @media (max-width: 767px) {
   .doc-bar .doc-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .note-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); width: 100%; }
-  .note-actions .button { justify-content: center; }
+  /* minmax(0, …) and wrapping: a long label ("Terugzetten naar concept") in a wider font never pushes the page sideways */
+  .note-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); width: 100%; }
+  .note-actions .button { justify-content: center; white-space: normal; text-align: center; line-height: 1.2; }
 }
 .note-details .note-fields { align-items: flex-start; }
 

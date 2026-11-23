@@ -42,30 +42,10 @@ test("an outline is only a proposal: the note stays as it is, and can be saved a
   await expect(page).toHaveURL(/bewerken=1/);
   await expect(body(page)).toBeVisible();
   await expect(panel).toHaveAttribute("open", "");
-  // TEMP diagnostics for a CI-only failure on the phone (removed again once understood)
-  const make = panel.getByRole("button", { name: "Opzet maken" });
-  await make.scrollIntoViewIfNeeded();
-  const samples: unknown[] = [];
-  for (let i = 0; i < 8; i++) {
-    samples.push(
-      await make.evaluate((b) => {
-        const r = b.getBoundingClientRect();
-        const d = b.closest("details")!;
-        const s = d.querySelector("summary")!.getBoundingClientRect();
-        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        const vv = window.visualViewport;
-        return {
-          btn: [Math.round(r.y), Math.round(r.height)], sum: [Math.round(s.y), Math.round(s.height)], d: Math.round(d.getBoundingClientRect().height),
-          hit: hit ? `${hit.tagName}.${hit.className}` : null, sy: Math.round(scrollY), ih: innerHeight, vv: vv && [vv.height, vv.scale, vv.offsetTop],
-          sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, url: location.search,
-          css: [getComputedStyle(d).display, getComputedStyle(d).position, getComputedStyle(b.parentElement!).display],
-        };
-      }),
-    );
-    await page.waitForTimeout(150);
-  }
-  console.log("DIAG ai-opzet", JSON.stringify(samples));
-  await make.click();
+  // the finished editor never scrolls sideways on a phone, whatever font the device has (a wider
+  // system font made "Terugzetten naar concept" push the page out, so taps landed 70px off)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await panel.getByRole("button", { name: "Opzet maken" }).click();
   await expect(panel.locator(".ai-answer")).toContainText(`Testsamenvatting van “${title}”`);
   await expect(panel.locator(".ai-answer")).toContainText("God is geduldig met Noach.");
 
