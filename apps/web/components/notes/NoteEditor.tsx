@@ -67,6 +67,15 @@ export function NoteEditor({ note, books, defaultTranslation, suggestions, unsyn
   const [eventDate, setEventDate] = useState(note.eventDate ?? "");
   const [sermon, setSermon] = useState<SermonDetails>(note.sermon);
   const [status, setStatus] = useState<NoteStatus>(note.status);
+  // Ronde 3 §2: a finished note opens in the reading view. While it is open here, the address says
+  // "bewerken", so a refresh (or a reload) keeps the editor instead of switching mid-sentence.
+  useEffect(() => {
+    if (status !== "afgerond" || offline) return;
+    const url = new URL(window.location.href);
+    if (!url.pathname.startsWith(`/notes/${note.id}`) || url.searchParams.get("bewerken") === "1") return;
+    url.searchParams.set("bewerken", "1");
+    window.history.replaceState(window.history.state, "", url);
+  }, [status, note.id, offline]);
   const [detailsOpen, setDetailsOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches);
   const [saveState, setSaveState] = useState<SaveState>(unsynced ? "lokaal" : "opgeslagen");
   const [message, setMessage] = useState("");
