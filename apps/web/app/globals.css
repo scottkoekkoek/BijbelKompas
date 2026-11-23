@@ -1728,5 +1728,56 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 .model-compare { margin-top: 8px; }
 .model-compare summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 .model-compare li { margin: 6px 0; }
-@media (max-width: 480px) { .model-facts { grid-template-columns: 1fr; } }
+@media (max-width: 480px) {
+  .model-facts { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .model-facts div { display: flex; gap: 8px; align-items: baseline; border: 0; border-radius: 0; padding: 6px 10px; }
+  .model-facts div + div { border-top: 1px solid var(--border); }
+  .model-facts dt { flex: 0 0 72px; }
+  .model-facts dd { margin: 0; font-weight: 500; }
+}
 .budget-form { display: grid; gap: 4px; max-width: 420px; }
+
+/* Ronde 3: Bijbeloverzicht met voortgang bij elk boek; compacte rijen en een bereikbare boekzoeker op de telefoon */
+.book-list a { flex-wrap: nowrap; justify-content: space-between; gap: var(--space-2); }
+.book-list-name { min-width: 0; overflow-wrap: anywhere; }
+.book-list-progress { flex: 0 0 auto; flex-basis: auto; font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.book-list a.started .book-list-progress { color: var(--primary); font-weight: var(--weight-semibold); }
+@media (max-width: 599px) {
+  .book-filter { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: var(--space-2) 0; margin: 0; }
+  .book-list { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); }
+  .book-list a { border: 0; border-radius: 0; box-shadow: none; min-height: 44px; border-bottom: 1px solid var(--border); }
+  .book-list li:last-child a { border-bottom: 0; }
+}
+
+/* Ronde 3: Home. Leeskaart en recente notities krijgen de aandacht; tellers en snelkoppelingen samen ernaast. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .dash-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .dash-grid .quick-actions { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+  /* a lower reading card: passage in the head, "Verder lezen" as the button */
+  .continue-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); row-gap: 0; padding: var(--space-4); }
+  .continue-card .eyebrow { grid-column: 1; }
+  .continue-card .continue-title { grid-column: 1; }
+  .continue-card .continue-text { display: none; }
+  .continue-card .continue-cta { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; min-height: 44px; }
+  .continue-card .card-icon { display: none; }
+  .dash-hero-actions > * { flex: 1 1 140px; }
+}
+
+/* Ronde 3: lijsten (Collecties, Vragen, Tijdlijn, Sjablonen) met dezelfde plek voor de aanmaakactie en de filters */
+.page-head .new-collection { margin: 0; }
+.page-head .new-collection[open] { flex-basis: 100%; order: 3; }
+.page-head .new-collection[open] > summary { margin-bottom: var(--space-3); }
+.page-head + .page-intro { margin-top: var(--space-2); }
+.list-filters { margin: 0 0 var(--space-6); }
+.list-filters .timeline-filters { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; border-radius: 0; }
+@media (max-width: 599px) {
+  .timeline li { padding: var(--space-3); }
+}
+
+/* Ronde 3: op de telefoon is "Gesynchroniseerd" een compacte stip; wachten, offline en fouten blijven als tekst zichtbaar */
+@media (max-width: 767px) {
+  .topbar .sync-indicator.ok { min-width: 44px; justify-content: center; }
+  .topbar .sync-indicator.ok .sync-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}

@@ -152,6 +152,8 @@ test("timeline: sorted on the event date, with writing dates apart, filtered by 
   await addNote(page, older);
 
   await page.goto("/timeline");
+  // Ronde 3: on narrow screens the filters sit behind "Filters"
+  if ((page.viewportSize()?.width ?? 0) < 900) await page.locator("details.list-filters > summary").click();
   await page.getByLabel("Thema of collectie").selectOption({ label: name });
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(new RegExp(`collectie=${id}`));

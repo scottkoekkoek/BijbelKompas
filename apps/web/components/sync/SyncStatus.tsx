@@ -1,7 +1,8 @@
 "use client";
 /**
  * BK-026: starts the sync engine, registers the service worker and shows the sync state.
- * The text is always visible (not only a colour). It is not a live region: a status that changes
+ * The text is visible whenever something needs attention (not only a colour); on a phone the calm
+ * "Gesynchroniseerd" state is a compact dot with the same text as its accessible name (Ronde 3). It is not a live region: a status that changes
  * every minute would keep interrupting a screen reader; the editor announces its own saves.
  */
 import Link from "next/link";
@@ -52,7 +53,7 @@ export function SyncIndicator({ href = "/sync" }: { href?: string }) {
   const s = useSyncState();
   const { text, tone } = syncLabel(s);
   return (
-    <Link href={href} className={`sync-indicator ${tone}`} aria-label={`Synchronisatie: ${text}`}>
+    <Link href={href} className={`sync-indicator ${tone}`} aria-label={`Synchronisatie: ${text}`} title={text}>
       <span className="sync-dot" aria-hidden="true" />
       <span className="sync-text">{text}</span>
     </Link>

@@ -41,18 +41,18 @@ export default async function CollectionsPage({ searchParams }: Props) {
     <>
       <div className="page-head">
         <h1>{archived ? "Gearchiveerde collecties" : "Collecties"}</h1>
+        {!archived && (
+          <details className="new-collection" open={Boolean(under)}>
+            <summary className="button">Nieuwe collectie</summary>
+            <CollectionForm parents={flatten(tree).map(({ id, name, depth }) => ({ id, name, depth }))} defaultParent={under} />
+          </details>
+        )}
       </div>
       <p className="page-intro">
         Een collectie bundelt notities, bijvoorbeeld een preekserie, een thema of een studie. Een notitie kan in meer
         collecties staan; er wordt niets gekopieerd.
       </p>
 
-      {!archived && (
-        <details className="new-collection" open={Boolean(under)}>
-          <summary className="button">Nieuwe collectie</summary>
-          <CollectionForm parents={flatten(tree).map(({ id, name, depth }) => ({ id, name, depth }))} defaultParent={under} />
-        </details>
-      )}
 
       {tree.length === 0 ? (
         <p className="placeholder">
