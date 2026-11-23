@@ -36,7 +36,12 @@ test("an outline is only a proposal: the note stays as it is, and can be saved a
   await expect(panel.getByRole("status")).toHaveText("Een opzet wordt pas gemaakt nadat je de notitie hebt afgerond.");
 
   await page.getByRole("button", { name: "Afronden" }).click();
+  await expect(page.locator(".note-head .badge")).toHaveText("Afgerond");
   await expect(saveState(page)).toHaveText("Opgeslagen");
+  // Ronde 3: finishing keeps you in the editor (the reading view is for opening a finished note)
+  await expect(page).toHaveURL(/bewerken=1/);
+  await expect(body(page)).toBeVisible();
+  await expect(panel).toHaveAttribute("open", "");
   await panel.getByRole("button", { name: "Opzet maken" }).click();
   await expect(panel.locator(".ai-answer")).toContainText(`Testsamenvatting van “${title}”`);
   await expect(panel.locator(".ai-answer")).toContainText("God is geduldig met Noach.");
