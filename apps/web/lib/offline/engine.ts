@@ -342,7 +342,7 @@ class SyncEngine {
     for (let page = 0; page < 100; page++) {
       const q = new URLSearchParams({ limit: "200", ...(cursor ? { cursor } : {}) });
       const r = await this.request<{ notes: NoteSummary[]; nextCursor: string | null; hasMore: boolean }>(`/api/v1/sync/pull?${q}`);
-      for (const n of r.notes) index[n.id] = { updatedAt: n.updatedAt, version: n.documentVersion, archived: n.archived, title: n.title };
+      for (const n of r.notes) index[n.id] = { updatedAt: n.updatedAt, version: n.documentVersion, archived: n.archived || n.trashed === true, title: n.title };
       cursor = r.nextCursor;
       meta = await setMeta({ index, cursor });
       if (!r.hasMore) break;

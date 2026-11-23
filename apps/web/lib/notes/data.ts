@@ -31,11 +31,12 @@ export type NoteRow = {
   document_version: number;
   current_revision: number;
   archived_at: string | null;
+  deleted_at?: string | null;
   updated_at: string;
 };
 
 export const NOTE_COLUMNS =
-  "id, title, note_type, status, event_date, document_version, current_revision, archived_at, updated_at";
+  "id, title, note_type, status, event_date, document_version, current_revision, archived_at, deleted_at, updated_at";
 
 export function toSummary(r: NoteRow): NoteSummary {
   return {
@@ -47,6 +48,7 @@ export function toSummary(r: NoteRow): NoteSummary {
     documentVersion: r.document_version,
     currentRevision: r.current_revision,
     archived: r.archived_at !== null,
+    trashed: r.deleted_at != null,
     updatedAt: new Date(r.updated_at).toISOString(),
   };
 }
@@ -54,11 +56,16 @@ export function toSummary(r: NoteRow): NoteSummary {
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const documentHash = (doc: NoteDocument) => sha256(canonicalJson(doc));
 
-export type Filters = { q?: string; type?: NoteType; status?: NoteStatus; archived?: boolean };
+export type Filters = { q?: string; type?: NoteType; status?: NoteStatus; archived?: boolean; trash?: boolean };
 
 export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]> {
   let query = db.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false }).limit(200);
-  query = f.archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+  // Ronde 3 §3: the trash is its own list; every other list leaves it out
+  if (f.trash) query = query.not("deleted_at", "is", null);
+  else {
+    query = query.is("deleted_at", null);
+    query = f.archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+  }
   if (f.type) query = query.eq("note_type", f.type);
   if (f.status) query = query.eq("status", f.status);
   if (f.q) query = query.ilike("title", `%${f.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`);

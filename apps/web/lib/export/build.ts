@@ -44,6 +44,8 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     all<NoteRow>((a, b) =>
       db.from("notes")
         .select("id, title, note_type, status, event_date, created_at, updated_at, completed_at, archived_at, document_version")
+        // Ronde 3 §3: drafts in the trash are not part of the export
+        .is("deleted_at", null)
         .order("created_at").order("id").range(a, b),
     ),
     all<{ note_id: string; document_json: ExportNote["document"] }>((a, b) =>
@@ -103,6 +105,10 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     revsById.set(r.note_id, list);
   }
 
+  // links to drafts in the trash stay out too, so the export can be put back without gaps
+  const kept = new Set(notes.map((n) => n.id));
+  const keptLink = (r: unknown) => kept.has((r as { note_id: string }).note_id);
+
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -134,9 +140,9 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     preferences: prefs.data,
     readingPosition: position.data,
     collections,
-    collectionItems,
+    collectionItems: collectionItems.filter(keptLink),
     questions,
-    questionNotes,
+    questionNotes: questionNotes.filter(keptLink),
     questionPassages,
     highlights,
   };

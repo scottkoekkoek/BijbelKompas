@@ -1676,3 +1676,15 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
   .sermon-head { flex-direction: column; }
   .sermon-edit { align-self: stretch; justify-content: center; }
 }
+
+/* ---- trash for drafts (Ronde 3 §3) ---- */
+.note-list > li.has-action { display: flex; align-items: stretch; }
+.note-list > li.has-action > a { flex: 1 1 auto; min-width: 0; }
+.note-list-action { display: flex; align-items: center; padding-right: var(--space-3); }
+.note-list-action .trash-button:hover { color: var(--danger); }
+.danger-text { color: var(--danger); }
+.danger-text:hover { color: var(--danger-hover); }
+.trash-error { display: block; color: var(--danger); font-size: var(--text-sm); }
+.undo-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.list-footer-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+.list-footer-links a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }

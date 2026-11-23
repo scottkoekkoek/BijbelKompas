@@ -97,7 +97,7 @@ export async function collectionNotes(db: Db, id: string): Promise<NoteSummary[]
     .order("created_at")
     .limit(1000);
   if (error) throw error;
-  return (data as unknown as { note: NoteRow | null }[]).filter((r) => r.note).map((r) => toSummary(r.note!));
+  return (data as unknown as { note: NoteRow | null }[]).filter((r) => r.note && !r.note.deleted_at).map((r) => toSummary(r.note!));
 }
 
 export async function addToCollection(db: Db, collectionId: string, noteId: string): Promise<void> {
@@ -215,7 +215,7 @@ export async function questionLinks(db: Db, id: string): Promise<{ notes: NoteSu
   if (notes.error) throw notes.error;
   if (passages.error) throw passages.error;
   return {
-    notes: (notes.data as unknown as { note: NoteRow | null }[]).filter((r) => r.note).map((r) => toSummary(r.note!)),
+    notes: (notes.data as unknown as { note: NoteRow | null }[]).filter((r) => r.note && !r.note.deleted_at).map((r) => toSummary(r.note!)),
     passages: (passages.data ?? []).map((p) => ({
       id: p.id,
       label: p.label,

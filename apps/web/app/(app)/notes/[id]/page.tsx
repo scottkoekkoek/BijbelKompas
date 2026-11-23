@@ -6,6 +6,7 @@ import { NoteOutline } from "@/components/ai/NoteOutline";
 import { NoteSuggestions } from "@/components/ai/NoteSuggestions";
 import { NoteCollections } from "@/components/collections/NoteCollections";
 import { ArchiveButton } from "@/components/notes/ArchiveButton";
+import { TrashButton } from "@/components/notes/TrashButton";
 import { ClockIcon } from "@/components/icons";
 import { LocalNote } from "@/components/notes/LocalNote";
 import { configuredProvider } from "@/lib/ai/provider";
@@ -54,6 +55,12 @@ export default async function NotePage({ params, searchParams }: Props) {
       <p className="crumb">
         <Link href={note.archived ? "/notes?archief=1" : "/notes"}>{note.archived ? "Archief" : "Notities"}</Link>
       </p>
+      {note.trashed && (
+        <div className="alert info undo-bar" role="status">
+          <span>Dit concept staat in de prullenbak. Het telt nergens mee tot je het terugzet.</span>
+          <TrashButton id={note.id} title={note.title} mode="terugzetten" />
+        </div>
+      )}
       {note.archived && (
         <p className="alert ok">Deze notitie staat in het archief. Je kunt hem nog steeds lezen en bewerken.</p>
       )}
@@ -71,6 +78,9 @@ export default async function NotePage({ params, searchParams }: Props) {
           Versiegeschiedenis
         </Link>
         <ArchiveButton id={note.id} archived={note.archived} />
+        {note.status === "concept" && !note.trashed && (
+          <TrashButton id={note.id} title={note.title} mode="weggooien" after={`/notes?weggegooid=${note.id}`} />
+        )}
       </div>
       <NoteCollections
         noteId={note.id}
