@@ -1851,6 +1851,7 @@ button.passage-chip.toggle.on { border-style: solid; background: var(--primary-s
 .related-passages > ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .related-passages p { margin: 0; }
 .related-titles { margin: var(--space-1) 0 0; padding-left: 1.2em; font-size: var(--text-sm); }
+.related-titles a { display: inline-block; min-height: 24px; padding-block: 3px; }
 
 /* Ronde 4 (B1, B2): your own margin in the reader */
 .note-dot.counted { width: auto; height: auto; min-width: 1.5em; padding: 0 0.3em; border-radius: var(--radius-full); font-family: var(--font-ui); font-size: 0.7em; font-weight: var(--weight-bold); line-height: 1.4em; text-align: center; color: var(--text); background: var(--accent-soft); border: 1px solid var(--accent); top: -0.45em; }
