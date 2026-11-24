@@ -2,6 +2,8 @@
 // Every icon here is decorative (aria-hidden); the link or button around it carries the name.
 import {
   Archive,
+  ListChecks,
+  CalendarCheck,
   LockKeyhole,
   MessageSquareText,
   ArchiveRestore,
@@ -78,6 +80,8 @@ export const ShieldIcon = make(Shield, 22);
 export const UserPlusIcon = make(UserPlus, 18);
 export const FeedbackIcon = make(MessageSquareText, 22);
 export const PrivacyIcon = make(LockKeyhole, 22);
+export const ApplyIcon = make(ListChecks, 22);
+export const PlanIcon = make(CalendarCheck, 22);
 
 /** The app mark: a compass on the evergreen tile. */
 export function BrandMark() {

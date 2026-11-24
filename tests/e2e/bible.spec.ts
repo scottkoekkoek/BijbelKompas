@@ -60,6 +60,8 @@ test("move to the next chapter and continue reading later", async ({ page }) => 
   await page.getByRole("link", { name: /Genesis 2/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Genesis 2" })).toBeVisible();
   await expect(page.locator(".verse")).toHaveCount(2);
+  // Ronde 4 (V7): staying a while counts as reading; then the position moves here
+  await page.waitForResponse((r) => r.url().includes("/api/v1/me/reading-position") && r.request().method() === "PUT", { timeout: 20_000 });
 
   // A chapter without test text explains that instead of showing an error.
   await page.getByRole("link", { name: /Genesis 3/ }).click();

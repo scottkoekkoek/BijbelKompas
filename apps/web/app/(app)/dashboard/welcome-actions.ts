@@ -45,3 +45,13 @@ export async function createSampleNote(): Promise<void> {
   revalidatePath("/dashboard");
   redirect(result.ok ? `/notes/${result.note.id}` : "/notes/new");
 }
+
+/** Ronde 4 (A3): "Later" on the Nog-uitwerken card puts it aside for three days. */
+export async function snoozeDrafts(): Promise<void> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return;
+  const until = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString();
+  await supabase.from("user_preferences").update({ drafts_snoozed_until: until }).eq("user_id", data.user.id);
+  revalidatePath("/dashboard");
+}

@@ -13,7 +13,7 @@ import { chapterHighlights, compareChapter } from "@/lib/reader/data";
 import { bookChapters, nextUnread, readVerses } from "@/lib/reader/progress";
 import { createClient } from "@/lib/supabase/server";
 
-type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string; vers?: string; terug?: string }> };
+type Props = { params: Promise<{ book: string; chapter: string }>; searchParams: Promise<{ v?: string; naast?: string; vers?: string; terug?: string; plek?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { book, chapter } = await params;
@@ -22,9 +22,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: found ? `${found.name} ${chapter}` : "Bijbel" };
 }
 
+const earlierFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Amsterdam" });
+
 export default async function ReaderPage({ params, searchParams }: Props) {
   const { book: rawBook, chapter: rawChapter } = await params;
-  const { v, naast, vers, terug } = await searchParams;
+  const { v, naast, vers, terug, plek } = await searchParams;
+  // Ronde 4 (V7): "Verder lezen" brings you back to this verse, without marking it
+  const resumeAt = /^\d{1,3}$/.test(plek ?? "") ? Number(plek) : null;
   // audit BK-01: the exact verse a link pointed at, and the note to return to
   const target = parseVerseTarget(vers);
   const back = isBackPath(terug) ? terug : null;
@@ -56,6 +60,22 @@ export default async function ReaderPage({ params, searchParams }: Props) {
   const lastVerse = data?.verses.at(-1)?.verse ?? 0;
   const targetMissing = !!target && !!data && data.verses.length > 0 && target.from > lastVerse;
   const notesInChapter = [...new Map(noteRows.map((r) => [r.note_id, r])).values()];
+  // Ronde 4 (B1): how many of your notes per verse, for the marker in the margin
+  const perVerse = new Map<number, Set<string>>();
+  for (const r of noteRows) perVerse.set(r.verse_number, (perVerse.get(r.verse_number) ?? new Set()).add(r.note_id));
+  const notedCounts = Object.fromEntries([...perVerse].map(([v, ids]) => [v, ids.size])) as Record<number, number>;
+  // Ronde 4 (B2): "Hier schreef je eerder over": your finished notes on this chapter, oldest and newest
+  const { data: finishedRows } = notesInChapter.length
+    ? await supabase
+        .from("notes")
+        .select("id, event_date, updated_at")
+        .in("id", notesInChapter.map((n) => n.note_id))
+        .eq("status", "afgerond")
+        .is("deleted_at", null)
+    : { data: null };
+  const finished = ((finishedRows ?? []) as { id: string; event_date: string | null; updated_at: string }[])
+    .map((r) => ({ id: r.id, date: r.event_date ? `${r.event_date}T12:00:00Z` : r.updated_at }))
+    .sort((a, b) => a.date.localeCompare(b.date));
   const references = translations.filter((t) => !t.hasText && t.externalUrl);
   const readable = translations.filter((t) => t.hasText);
   // BK-011: a second translation side by side (only one whose text may be shown)
@@ -158,6 +178,15 @@ export default async function ReaderPage({ params, searchParams }: Props) {
         )}
       </div>
 
+      {finished.length > 0 && (
+        <p className="earlier-line">
+          {finished.length === 1
+            ? `Je schreef hierover op ${earlierFmt.format(new Date(finished[0]!.date))}.`
+            : `Je schreef hier ${finished.length} keer over, van ${earlierFmt.format(new Date(finished[0]!.date))} tot ${earlierFmt.format(new Date(finished.at(-1)!.date))}.`}{" "}
+          <Link href={finished.length === 1 ? `/notes/${finished[0]!.id}` : "#chapter-notes-title"}>Teruglezen</Link>
+        </p>
+      )}
+
       {targetMissing && (
         <p className="alert info target-missing" role="status">
           {book.name} {chapter} heeft in de {data?.translation.name} {lastVerse} verzen. Vers {target?.from} bestaat hier niet; het hele hoofdstuk wordt getoond.
@@ -185,9 +214,11 @@ export default async function ReaderPage({ params, searchParams }: Props) {
           bookName={book.name}
           chapter={chapter}
           translationCode={data.translation.code}
-          noted={[...new Set(noteRows.map((r) => r.verse_number))]}
+          noted={Object.keys(notedCounts).map(Number)}
+          notedCounts={notedCounts}
           highlights={highlights}
           target={targetMissing ? null : target}
+          resumeAt={target ? null : resumeAt}
           read={readList}
           explainWith={explainWith}
         />

@@ -115,7 +115,7 @@ type Reservation =
  */
 async function reserve(
   db: Db,
-  a: { jobType: "analyse" | "vraag" | "uitleg" | "opzet"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
+  a: { jobType: "analyse" | "vraag" | "uitleg" | "opzet" | "gespreksvragen"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
 ): Promise<Reservation> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const token = randomBytes(32).toString("base64url");
@@ -605,4 +605,80 @@ export async function deleteNoteSummary(db: Db, noteId: string): Promise<boolean
   const { data, error } = await db.rpc("delete_note_summary", { p_note_id: noteId });
   if (error) throw error;
   return data === true;
+}
+
+// Ronde 4 (D1): conversation questions for a group, next to a finished note -------------------
+export type Discussion = { id: string; questions: string[]; stale: boolean; model: string; createdAt: string };
+type DiscussionRow = { id: string; questions: string[]; content_hash: string; model_version: string; created_at: string };
+const toDiscussion = (r: DiscussionRow, hash: string | null): Discussion => ({
+  id: r.id,
+  questions: r.questions,
+  stale: hash !== null && r.content_hash !== hash,
+  model: r.model_version,
+  createdAt: r.created_at,
+});
+
+/** The latest questions made for this note (or null). */
+export async function latestDiscussion(db: Db, noteId: string): Promise<Discussion | null> {
+  const [hash, { data, error }] = await Promise.all([
+    currentHash(db, noteId),
+    db.from("ai_discussion_questions").select("id, questions, content_hash, model_version, created_at").eq("note_id", noteId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (error) throw error;
+  return data ? toDiscussion(data as DiscussionRow, hash) : null;
+}
+
+export type DiscussionResult =
+  | { ok: true; discussion: Discussion; reused: boolean }
+  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "busy" | "failed" | "empty" };
+
+/** Same order as every AI job: AI on, note finished, budget reserved first; the same text never twice. */
+export async function discussNote(db: Db, provider: AiProvider, noteId: string): Promise<DiscussionResult> {
+  const prefs = await db.from("user_preferences").select("ai_enabled").maybeSingle();
+  if (prefs.error) throw prefs.error;
+  if (prefs.data?.ai_enabled !== true) return { ok: false, kind: "ai_off" };
+  const { data: note, error } = await db.from("notes").select("id, title, note_type, status, current_revision").eq("id", noteId).maybeSingle();
+  if (error) throw error;
+  if (!note) return { ok: false, kind: "not_found" };
+  if (note.status !== "afgerond") return { ok: false, kind: "not_finished" };
+
+  const [hash, { data: blocks, error: e1 }] = await Promise.all([
+    currentHash(db, noteId),
+    db.from("note_blocks").select("plain_text").eq("note_id", noteId).order("position").limit(2000),
+  ]);
+  if (e1) throw e1;
+  const input: OutlineInput = { noteId, title: note.title, noteType: note.note_type, text: (blocks ?? []).map((b) => b.plain_text).join("\n") };
+
+  const r = await reserve(db, {
+    jobType: "gespreksvragen",
+    key: `gespreksvragen:${noteId}:${hash ?? `r${note.current_revision}`}:${provider.name}/${provider.model}`,
+    estimate: provider.estimateDiscussionEur(input),
+    provider,
+    noteId,
+    revision: note.current_revision,
+  });
+  if (!r.ok) return r;
+  const job = r.job;
+  if (job.status === "klaar") {
+    const prev = await db.from("ai_discussion_questions").select("id, questions, content_hash, model_version, created_at").eq("job_id", job.id).maybeSingle();
+    if (prev.error) throw prev.error;
+    if (!prev.data) return { ok: false, kind: "failed" };
+    return { ok: true, discussion: toDiscussion(prev.data as DiscussionRow, hash), reused: true };
+  }
+
+  try {
+    const out = await provider.discussion(input);
+    if (out.questions.length === 0) {
+      await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+      return { ok: false, kind: "empty" };
+    }
+    const saved = await db.rpc("ai_add_discussion", { p_job_id: job.id, p_questions: out.questions }).single();
+    if (saved.error) throw saved.error;
+    const fin = await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    if (fin.error) throw fin.error;
+    return { ok: true, discussion: toDiscussion(saved.data as DiscussionRow, hash), reused: false };
+  } catch (err) {
+    await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: provider.estimateDiscussionEur(input) });
+    throw err;
+  }
 }

@@ -3,16 +3,18 @@ import type { ReactNode } from "react";
 import { passagePath, type PassageTarget } from "@/lib/bible";
 import { Fragment } from "react";
 import { passagesOf, type PMNode } from "@/lib/notes/document";
+import { VerseText } from "./VerseText";
 
 /** Read-only rendering of a note document (versions). Builds React elements, never raw HTML. */
-export function DocumentView({ doc, back, className = "note-body readonly" }: { doc: { content?: unknown[] }; back?: string; className?: string }) {
+/** `withText`: translations whose text may be shown under a reference (Ronde 4, V12). */
+export function DocumentView({ doc, back, className = "note-body readonly", withText = [] }: { doc: { content?: unknown[] }; back?: string; className?: string; withText?: string[] }) {
   return (
     <div className={className}>
       {((doc.content ?? []) as PMNode[]).map((n, i) => {
         const passages = passagesOf(n);
         // top-level blocks keep their id, so a link to "#blok-<id>" (search, AI sources) lands there
         const blockId = typeof n.attrs?.blockId === "string" ? n.attrs.blockId : null;
-        const el = render(n, i, back);
+        const el = render(n, i, back, withText);
         const block = blockId && el ? (
           <div key={i} id={`blok-${blockId}`} className="doc-block">
             {el}
@@ -53,7 +55,7 @@ function children(node: PMNode) {
   return (node.content ?? []).map((c, i) => render(c, i));
 }
 
-function render(node: PMNode, key: number, back?: string): ReactNode {
+function render(node: PMNode, key: number, back?: string, withText: string[] = []): ReactNode {
   switch (node.type) {
     case "text":
       return marks(node, key);
@@ -82,6 +84,7 @@ function render(node: PMNode, key: number, back?: string): ReactNode {
           <span className="ref-actions">
             <Link href={passagePath(a, back)} aria-label={`${a.label} lezen`}>Lees</Link>
           </span>
+          {withText.includes(a.translation) && <VerseText passage={a} />}
         </div>
       );
     }

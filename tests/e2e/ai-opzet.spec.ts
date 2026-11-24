@@ -32,7 +32,7 @@ test("an outline is only a proposal: the note stays as it is, and can be saved a
   const panel = page.locator(".ai-outline");
   await panel.locator("summary").click();
   await expect(panel).toContainText("Testaanbieder: er gaat niets naar buiten.");
-  await panel.getByRole("button", { name: "Opzet maken" }).click();
+  await panel.getByRole("button", { name: "Samenvatting maken" }).click();
   await expect(panel.getByRole("status")).toHaveText("Een opzet wordt pas gemaakt nadat je de notitie hebt afgerond.");
 
   await page.getByRole("button", { name: "Afronden" }).click();
@@ -45,7 +45,7 @@ test("an outline is only a proposal: the note stays as it is, and can be saved a
   // the finished editor never scrolls sideways on a phone, whatever font the device has (a wider
   // system font made "Terugzetten naar concept" push the page out, so taps landed 70px off)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  await panel.getByRole("button", { name: "Opzet maken" }).click();
+  await panel.getByRole("button", { name: "Samenvatting maken" }).click();
   await expect(panel.locator(".ai-answer")).toContainText(`Testsamenvatting van “${title}”`);
   await expect(panel.locator(".ai-answer")).toContainText("God is geduldig met Noach.");
 

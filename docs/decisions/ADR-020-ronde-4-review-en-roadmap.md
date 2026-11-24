@@ -80,6 +80,43 @@ alleen het totaal van de pilot. De stopgrens blijft 90% van de limiet.
     `passages`). In de editor staat onder de werkbalk "Koppelen?" voor de alinea met de cursor.
   - Er wordt nooit iets gekoppeld zonder tik, en de tekst zelf blijft ongewijzigd.
 
+## 5. Leesplek per vers en "Nog uitwerken" (V7, A3)
+
+- `reading_positions.verse_number` (mag leeg). De lezer bewaart het vers bovenaan het scherm, maar alleen
+  na echt lezen: na scrollen, of na 10 seconden in het hoofdstuk. Even iets opzoeken verschuift de leesplek
+  dus niet meer. "Verder lezen" opent met `?plek=20` en scrollt naar dat vers zonder het te markeren.
+- Op Home staat de kaart "Nog uitwerken": concepten van de laatste 14 dagen, de oudste eerst. "Later"
+  verbergt de kaart drie dagen (`user_preferences.drafts_snoozed_until`).
+
+## 6. Kleinere punten (V12, V14, B6)
+
+- **V12.** In de leesweergave staat onder elke verwijzing "Toon de tekst", alleen bij vertalingen waarvan
+  de tekst getoond mag worden (nooit HSV of NBV21). De tekst komt eerst van het apparaat als de vertaling
+  offline staat.
+- **V14.** De knop heet nu "Samenvatting maken". De tijdlijn heeft een sprong naar een jaar. Een haakje of
+  aanhalingsteken dat Postgres vooraan een zoekfragment weglaat, wordt bij het tonen teruggezet.
+- **B6.** Onder een afgeronde notitie staat "Bij dezelfde passage": je andere notities en vragen op die
+  verzen, zonder AI.
+
+## 7. Te valideren met testers (B1, B2, B4, C2, D1)
+
+- **B1, B2.** In de lezer toont de stip bij een vers het aantal notities als dat er meer dan één is.
+  Bovenaan het hoofdstuk staat "Je schreef hierover op …" met een link om terug te lezen.
+- **B4.** Op `/toepassingen` staat wat onder een kop "Toepassing" staat, met de keuzes Gedaan, Loslaten en
+  een korte terugblik (`application_reviews`, RLS). De notitie zelf verandert nooit. Op Home staat
+  "Wat wilde je toepassen?" voor open punten van de laatste twee weken.
+- **C2.** Op `/leesplan` kies je een van twee plannen ("NT in 90 dagen", "Psalmen en Spreuken in een
+  maand"). Home toont het volgende stuk met "Gelezen". Achterlopen is geen probleem: het plan wacht, er is
+  geen reeks die breekt.
+  - De tabel is `reading_plans`, één plan per account.
+  - Starten en stoppen gaan via functies, want de app verwijdert nooit direct.
+- **D1.** In de leesweergave staat "Gespreksvragen": vijf vragen voor een kring.
+  - Dit volgt hetzelfde patroon als de samenvatting: alleen na afronden, en het budget wordt eerst
+    gereserveerd.
+  - De vragen worden apart bewaard in `ai_discussion_questions`, nooit in de notitie.
+- Nog niet gedaan uit de voorstellen: de kantlijn als aparte kolom op desktop (B1 toont nu stippen met aantal),
+  en vraag-stippen per vers.
+
 ## Terugdraaien
 
 De migratie voegt toe en herdefinieert functies met een extra, optionele parameter. De vorige app-versie

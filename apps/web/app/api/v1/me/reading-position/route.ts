@@ -34,6 +34,7 @@ export async function PUT(request: Request) {
       translation_id: translation.data.id,
       book_id: book.data.id,
       chapter_number: parsed.data.chapter,
+      verse_number: parsed.data.verse ?? null,
     },
     { onConflict: "owner_id" },
   );

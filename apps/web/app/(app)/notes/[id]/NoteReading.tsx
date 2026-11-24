@@ -1,6 +1,7 @@
 // Ronde 3 §2: the reading view of a finished note (every type; a sermon shows its details too).
 // Reads only: opening, reading or going back changes nothing about the note, its status or versions.
 import { NOTE_TYPE_LABELS, type Note } from "@bk/schemas";
+import { DiscussionQuestions } from "@/components/ai/DiscussionQuestions";
 import { LinkedSummary } from "@/components/ai/LinkedSummary";
 import { NoteOutline } from "@/components/ai/NoteOutline";
 import { NoteSuggestions } from "@/components/ai/NoteSuggestions";
@@ -8,12 +9,15 @@ import { NoteCollections } from "@/components/collections/NoteCollections";
 import { DocumentView } from "@/components/notes/DocumentView";
 import { BackCrumb } from "@/components/reading/BackCrumb";
 import { LocalChangesNotice } from "@/components/reading/LocalChangesNotice";
+import { RelatedByPassage } from "@/components/reading/RelatedByPassage";
 import { SermonView } from "@/components/sermon/SermonView";
 import { getNoteSummary } from "@/lib/ai/data";
 import { configuredProvider } from "@/lib/ai/provider";
 import { collectionsOfNote, listCollections, questionsOfNote } from "@/lib/collections/data";
 import { buildTree, flatten } from "@/lib/collections/tree";
+import { getTranslations } from "@/lib/bible-data";
 import { readingMeta, readingPassages } from "@/lib/notes/reading";
+import { notePassages } from "@/lib/notes/sermon";
 import type { createClient } from "@/lib/supabase/server";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -21,14 +25,17 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 export async function NoteReading({ supabase, note }: { supabase: Db; note: Note }) {
   const here = `/notes/${note.id}`;
   const editHref = `${here}?bewerken=1`;
-  const [passages, prefs, collections, memberOf, questions, summary] = await Promise.all([
+  const [passages, prefs, collections, memberOf, questions, summary, translations] = await Promise.all([
     readingPassages(supabase, note, here),
     supabase.from("user_preferences").select("ai_enabled").maybeSingle(),
     listCollections(supabase),
     collectionsOfNote(supabase, note.id),
     questionsOfNote(supabase, note.id),
     getNoteSummary(supabase, note.id),
+    getTranslations(supabase),
   ]);
+  // V12: only translations whose text may be shown (never HSV or NBV21)
+  const withText = translations.filter((t) => t.hasText).map((t) => t.code);
   const p = configuredProvider();
   const provider = p ? { name: p.name, external: p.external } : null;
   const aiEnabled = prefs.data?.ai_enabled === true;
@@ -56,17 +63,19 @@ export async function NoteReading({ supabase, note }: { supabase: Db; note: Note
             hasSaved={summary !== null}
             savedOutlineId={summary?.outlineId ?? null}
           />
+          <DiscussionQuestions noteId={note.id} aiEnabled={aiEnabled} provider={provider} />
           <NoteCollections
             noteId={note.id}
             collections={flatten(buildTree(collections)).map(({ id, name, depth }) => ({ id, name, depth }))}
             memberOf={memberOf}
             questions={questions}
           />
+          <RelatedByPassage supabase={supabase} noteId={note.id} passages={notePassages(note.document)} />
           <NoteSuggestions noteId={note.id} aiEnabled={aiEnabled} provider={provider} />
         </div>
       }
     >
-      <DocumentView doc={note.document} back={here} className="note-body readonly sermon-text" />
+      <DocumentView doc={note.document} back={here} className="note-body readonly sermon-text" withText={withText} />
     </SermonView>
   );
 }

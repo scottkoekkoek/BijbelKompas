@@ -39,6 +39,9 @@ export type OutlineInput = { noteId: string; title: string; noteType: string; te
 export type OutlinePoint = { heading: string; details: string[] };
 export type OutlineOutput = { summary: string; mainThought: string; points: OutlinePoint[]; application: string; costEur: number };
 
+/** Ronde 4 (D1): conversation questions for a group, from one finished note. */
+export type DiscussionOutput = { questions: string[]; costEur: number };
+
 export interface AiProvider {
   /** short name, stored with every job and suggestion */
   readonly name: string;
@@ -53,6 +56,8 @@ export interface AiProvider {
   explain(input: ExplainInput): Promise<ExplainOutput>;
   estimateOutlineEur(input: OutlineInput): number;
   outline(input: OutlineInput): Promise<OutlineOutput>;
+  estimateDiscussionEur(input: OutlineInput): number;
+  discussion(input: OutlineInput): Promise<DiscussionOutput>;
 }
 
 /** The first sentence of a text (at most 200 characters), taken literally so it can be checked. */
@@ -112,6 +117,21 @@ const fictief: AiProvider = {
       mainThought: first,
       points: [{ heading: "Testpunt", details: [first] }],
       application: "Testtoepassing.",
+    };
+  },
+  estimateDiscussionEur: () => 0.01,
+  /** Asks nothing of its own: five fixed questions around the title, so the flow can be tested. */
+  async discussion(input) {
+    const t = input.title || "deze notitie";
+    return {
+      costEur: 0.001,
+      questions: [
+        `Testvraag 1: wat raakte je in “${t}”?`,
+        "Testvraag 2: welk vers bleef hangen?",
+        "Testvraag 3: wat zegt dit over God?",
+        "Testvraag 4: wat betekent het voor je week?",
+        "Testvraag 5: waar wil je samen voor bidden?",
+      ],
     };
   },
 };
