@@ -6,7 +6,7 @@ import { BookIcon, ChevronRightIcon, FolderIcon, NoteIcon, QuestionIcon, SearchI
 import { readerPath } from "@/lib/bible";
 import { getReadingPosition } from "@/lib/bible-data";
 import { listQuestions } from "@/lib/collections/data";
-import { listNotes } from "@/lib/notes/data";
+import { countNotes, listNotes } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Home" };
@@ -24,17 +24,20 @@ function greeting(now: Date) {
   return "Goedenavond";
 }
 
-const LIMIT = 200; // listNotes returns at most this many
-
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const [position, notes, questions] = await Promise.all([getReadingPosition(supabase), listNotes(supabase), listQuestions(supabase, "lopend")]);
-  const recent = notes.slice(0, 5);
+  // Ronde 4 (V4): counted in the database, so the numbers stay right beyond 200 notes
+  const [position, recent, total, concepts, questions] = await Promise.all([
+    getReadingPosition(supabase),
+    listNotes(supabase, {}, 5),
+    countNotes(supabase),
+    countNotes(supabase, { status: "concept" }),
+    listQuestions(supabase, "lopend"),
+  ]);
   const now = new Date();
-  const concepts = notes.filter((n) => n.status === "concept").length;
   // the same count as the "Lopend" tab it links to: open and in research
   const openQuestions = questions.length;
-  const count = (n: number) => (n >= LIMIT ? `${LIMIT}+` : String(n));
+  const count = (n: number) => String(n);
 
   return (
     <>
@@ -127,8 +130,8 @@ export default async function DashboardPage() {
             <ul className="stat-grid">
               <li>
                 <Link className="stat" href="/notes">
-                  <span className="stat-value">{count(notes.length)}</span>
-                  <span className="stat-label">{notes.length === 1 ? "notitie" : "notities"}</span>
+                  <span className="stat-value">{count(total)}</span>
+                  <span className="stat-label">{total === 1 ? "notitie" : "notities"}</span>
                 </Link>
               </li>
               <li>

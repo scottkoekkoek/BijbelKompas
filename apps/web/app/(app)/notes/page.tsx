@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { NoteIcon, TrashIcon } from "@/components/icons";
 import { TrashButton } from "@/components/notes/TrashButton";
-import { getNote, listNotes } from "@/lib/notes/data";
+import { getNote, listNotesPage } from "@/lib/notes/data";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Notities" };
 
-type Props = { searchParams: Promise<{ q?: string; type?: string; status?: string; archief?: string; prullenbak?: string; weggegooid?: string }> };
+type Props = { searchParams: Promise<{ q?: string; type?: string; status?: string; archief?: string; prullenbak?: string; weggegooid?: string; pagina?: string }> };
 
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 
@@ -21,12 +21,24 @@ export default async function NotesPage({ searchParams }: Props) {
   const q = (sp.q ?? "").slice(0, 100);
   const supabase = await createClient();
   const thrown = /^[0-9a-f-]{36}$/.test(sp.weggegooid ?? "") ? sp.weggegooid! : null;
-  const [notes, thrownNote] = await Promise.all([
-    listNotes(supabase, { q: q || undefined, type, status: trash ? undefined : status, archived, trash }),
+  const [{ notes, total, page, pages }, thrownNote] = await Promise.all([
+    listNotesPage(supabase, { q: q || undefined, type, status: trash ? undefined : status, archived, trash }, Number(sp.pagina ?? 1)),
     thrown ? getNote(supabase, thrown).catch(() => null) : Promise.resolve(null),
   ]);
   const filtered = Boolean(q || type || (!trash && status));
   const heading = trash ? "Prullenbak" : archived ? "Archief" : "Notities";
+  // Ronde 4 (V3): pages keep the filters, so every note stays reachable
+  const pageHref = (n: number) => {
+    const u = new URLSearchParams();
+    if (q) u.set("q", q);
+    if (type) u.set("type", type);
+    if (status && !trash) u.set("status", status);
+    if (archived) u.set("archief", "1");
+    if (trash) u.set("prullenbak", "1");
+    if (n > 1) u.set("pagina", String(n));
+    const s = u.toString();
+    return s ? `/notes?${s}` : "/notes";
+  };
 
   return (
     <>
@@ -96,6 +108,11 @@ export default async function NotesPage({ searchParams }: Props) {
               : "Je hebt nog geen notities. Begin met een nieuwe notitie, of selecteer verzen in de Bijbel en kies “In notitie zetten”."}
         </p>
       ) : (
+        <>
+        <p className="list-count muted" aria-live="polite">
+          {total === 1 ? "1 notitie" : `${total} notities`}
+          {pages > 1 && ` · pagina ${page} van ${pages}`}
+        </p>
         <ul className="note-list">
           {notes.map((n) => (
             <li key={n.id} className={n.status === "concept" ? "has-action" : undefined}>
@@ -114,6 +131,16 @@ export default async function NotesPage({ searchParams }: Props) {
             </li>
           ))}
         </ul>
+        {pages > 1 && (
+          <nav className="pager" aria-label="Pagina's">
+            {page > 1 ? <Link className="button secondary small" href={pageHref(page - 1)} rel="prev">Vorige 50</Link> : <span />}
+            <span className="muted">
+              {(page - 1) * 50 + 1}–{Math.min(page * 50, total)} van {total}
+            </span>
+            {page < pages ? <Link className="button secondary small" href={pageHref(page + 1)} rel="next">Volgende 50</Link> : <span />}
+          </nav>
+        )}
+        </>
       )}
       <p className="list-footer-links">
         {archived || trash ? (

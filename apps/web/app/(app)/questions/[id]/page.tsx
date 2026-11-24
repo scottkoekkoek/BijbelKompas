@@ -30,7 +30,7 @@ export default async function QuestionPage({ params }: Props) {
   const { supabase, question } = r;
   const [links, notes, books, translations] = await Promise.all([
     questionLinks(supabase, question.id),
-    listNotes(supabase),
+    listNotes(supabase, {}, 2000), // Ronde 4: every note can be picked, also old ones
     getBooks(supabase),
     getTranslations(supabase),
   ]);

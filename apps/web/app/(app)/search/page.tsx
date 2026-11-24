@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Zoeken" };
 
 type Props = {
-  searchParams: Promise<{ q?: string; type?: string; status?: string; van?: string; tot?: string; boek?: string; spreker?: string; archief?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; status?: string; van?: string; tot?: string; boek?: string; spreker?: string; archief?: string; meer?: string }>;
 };
 
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
@@ -45,9 +45,11 @@ export default async function SearchPage({ searchParams }: Props) {
   };
   const translation = pickTranslation(translations, undefined, null);
   const searching = q.length >= 2;
-  const [notes, bible] = searching
+  // Ronde 4: "Toon meer" doubles the word results (the database gives at most 100)
+  const noteLimit = sp.meer === "1" ? 100 : 50;
+  const [wordNotes, bible] = searching
     ? await Promise.all([
-        searchNotes(supabase, q, filters),
+        searchNotes(supabase, q, filters, noteLimit),
         translation ? searchBible(supabase, translation.code, q) : Promise.resolve({ total: 0, hits: [] }),
       ])
     : [[], { total: 0, hits: [] }];
@@ -78,6 +80,14 @@ export default async function SearchPage({ searchParams }: Props) {
           return { ref: r, verses: verses.slice(0, 8), more: verses.length > 8, exists: verses.length > 0 || chapterData.verses.length === 0, study };
         })()
       : null;
+  // Ronde 4 (V5): a note already shown at the passage is not listed again under the word results
+  const atPassage = new Set(passage?.study.notes.map((n) => n.id) ?? []);
+  const notes = wordNotes.filter((n) => !atPassage.has(n.noteId));
+  const moreHref = (() => {
+    const u = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string" && e[0] !== "meer"));
+    u.set("meer", "1");
+    return `/search?${u.toString()}`;
+  })();
 
   return (
     <>
@@ -264,7 +274,7 @@ export default async function SearchPage({ searchParams }: Props) {
           {(notes.length > 0 || (!passage && (filtered || bible.hits.length === 0))) && (
             <section aria-labelledby="note-results">
               <h2 id="note-results" className={passage ? "word-group-title" : undefined}>
-                Notities <span className="count">({notes.length === 50 ? "50+" : notes.length})</span>
+                Notities <span className="count">({wordNotes.length === noteLimit ? `${notes.length}+` : notes.length})</span>
               </h2>
               {notes.length === 0 ? (
                 <p className="placeholder">
@@ -290,6 +300,14 @@ export default async function SearchPage({ searchParams }: Props) {
                   ))}
                 </ul>
               )}
+              {wordNotes.length === noteLimit &&
+                (noteLimit === 50 ? (
+                  <p>
+                    <Link href={moreHref}>Toon meer notities</Link>
+                  </p>
+                ) : (
+                  <p className="muted">De eerste 100 notities worden getoond. Voeg een woord of filter toe om verder te zoeken.</p>
+                ))}
             </section>
           )}
 

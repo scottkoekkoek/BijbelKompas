@@ -1789,3 +1789,7 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 /* Ronde 4: AI-limiet per account in Beheer */
 .user-limit-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .user-limit-form input[type="number"] { width: 9.5rem; min-height: 44px; }
+/* Ronde 4 (V3): pages in Notities */
+.list-count { margin: 0 0 var(--space-2); font-size: 0.9rem; }
+.pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-2); margin: var(--space-4, 16px) 0; }
+.pager > :last-child { justify-self: end; }

@@ -58,8 +58,10 @@ export const documentHash = (doc: NoteDocument) => sha256(canonicalJson(doc));
 
 export type Filters = { q?: string; type?: NoteType; status?: NoteStatus; archived?: boolean; trash?: boolean };
 
-export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]> {
-  let query = db.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false }).limit(200);
+function notesQuery(db: Db, f: Filters, count = false) {
+  let query = count
+    ? db.from("notes").select("id", { count: "exact", head: true })
+    : db.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false }).order("id");
   // Ronde 3 §3: the trash is its own list; every other list leaves it out
   if (f.trash) query = query.not("deleted_at", "is", null);
   else {
@@ -69,9 +71,34 @@ export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]>
   if (f.type) query = query.eq("note_type", f.type);
   if (f.status) query = query.eq("status", f.status);
   if (f.q) query = query.ilike("title", `%${f.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`);
-  const { data, error } = await query;
+  return query;
+}
+
+/** The most recently changed notes (at most `limit`): for pickers and small overviews. */
+export async function listNotes(db: Db, f: Filters = {}, limit = 200): Promise<NoteSummary[]> {
+  const { data, error } = await notesQuery(db, f).limit(limit);
   if (error) throw error;
   return (data as NoteRow[]).map(toSummary);
+}
+
+export const NOTES_PAGE_SIZE = 50;
+
+/** Ronde 4 (V3): one page of the notes list plus the total, so no note is ever out of reach. */
+export async function listNotesPage(db: Db, f: Filters, page: number): Promise<{ notes: NoteSummary[]; total: number; page: number; pages: number }> {
+  const total = await countNotes(db, f);
+  const pages = Math.max(1, Math.ceil(total / NOTES_PAGE_SIZE));
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  const from = (p - 1) * NOTES_PAGE_SIZE;
+  const { data, error } = await notesQuery(db, f).range(from, from + NOTES_PAGE_SIZE - 1);
+  if (error) throw error;
+  return { notes: (data as NoteRow[]).map(toSummary), total, page: p, pages };
+}
+
+/** Ronde 4 (V4): an exact count in the database, not a count of a capped list. */
+export async function countNotes(db: Db, f: Filters = {}): Promise<number> {
+  const { count, error } = await notesQuery(db, f, true);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 type SermonRow = {
@@ -370,7 +397,7 @@ export type NoteHit = {
 };
 export type VerseHit = { bookCode: string; bookName: string; chapter: number; verse: number; snippet: string };
 
-export async function searchNotes(db: Db, query: string, f: SearchFilters = {}): Promise<NoteHit[]> {
+export async function searchNotes(db: Db, query: string, f: SearchFilters = {}, limit = 50): Promise<NoteHit[]> {
   const { data, error } = await db.rpc("search_notes", {
     p_query: query,
     p_type: f.type ?? null,
@@ -380,7 +407,7 @@ export async function searchNotes(db: Db, query: string, f: SearchFilters = {}):
     p_book: f.book ?? null,
     p_speaker: f.speaker ?? null,
     p_archived: f.archived ?? false,
-    p_limit: 50,
+    p_limit: limit,
   });
   if (error) throw error;
   return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
