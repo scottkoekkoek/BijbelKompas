@@ -9,7 +9,7 @@ Voor de beheerder (Scott). Deel nooit sleutels of wachtwoorden in een chat, issu
 2. **Migraties.** Draai in GitHub Actions "Migraties naar productie". Nieuw in deze ronde:
    `20261123000001_prullenbak`, `20261123000002_samenvatting_bij_notitie`,
    `20261123000003_besloten_pilot`, `20261123000004_ai_modelkeuze`,
-   `20261123000005_passage_notes_zonder_tekst` en (ronde 4) `20261124000001_pilotveiligheid`. Ze voegen toe of verbeteren een functie; er wordt niets gewist.
+   `20261123000005_passage_notes_zonder_tekst` en (ronde 4) `20261124000001_pilotveiligheid` en `20261124000002_pilotstart`. Ze voegen toe of verbeteren een functie; er wordt niets gewist.
    - De pilotmigratie maakt het enige bestaande account (jij) beheerder. Staat er meer dan één
      account, dan wordt niemand gekozen; maak jezelf dan beheerder in de SQL-editor van Supabase:
      `insert into public.app_admins (user_id) select id from auth.users where email = '<jouw adres>';`
@@ -70,3 +70,16 @@ Een open link trek je in met **Intrekken** bij Links. Daarna geeft hij geen toeg
   **Limiet opslaan**. Leeg laten en opslaan zet het account terug op de standaard. Je ziet alleen de limiet,
   niet wat iemand gebruikt.
 - Zet ook bij Anthropic zelf een maandlimiet (harde rem, ADR-016).
+
+## 7. Feedback, privacy en account verwijderen (ADR-020)
+
+- **Feedback**: testers gebruiken de knop **Feedback** in de zijbalk of onder Meer. Je leest alles bij
+  Beheer → Feedback van testers, met e-mailadres, pagina en schermgrootte. Andere testers zien het niet.
+- **Privacy**: stuur testers naar `/privacy`; die pagina staat ook op het inlogscherm en de uitnodiging.
+  Pas de tekst aan als er iets verandert in hosting, back-ups of de AI-aanbieder.
+- **Account verwijderen**: een tester doet dit zelf bij Instellingen → Account verwijderen (wachtwoord +
+  VERWIJDEREN). Daar is `SUPABASE_SECRET_KEY` voor nodig. Alles van dat account gaat direct uit de
+  database; uit de back-ups verdwijnt het na 90 dagen. Ben jij de enige beheerder, dan kun je jezelf niet
+  verwijderen.
+- **Wachtwoord vergeten**: zonder SMTP komt er geen mail; de melding verwijst naar jou. Maak dan bij
+  Beheer een herstellink.

@@ -19,7 +19,7 @@ import { editLockName, syncEngine } from "@/lib/offline/engine";
 import type { LocalContent } from "@/lib/offline/types";
 import { passagePath } from "@/lib/bible";
 import { LINKABLE_TYPES, MAX_PASSAGES_PER_BLOCK, samePassage, type LinkedPassage } from "@/lib/notes/document";
-import { parseReference, type BookInfo } from "@/lib/notes/reference";
+import { findReferences, parseReference, type BookInfo } from "@/lib/notes/reference";
 import { noteExtensions } from "./extensions";
 
 export const AUTOSAVE_MS = 1500;
@@ -589,6 +589,23 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
     setRef("");
   }
 
+  // Ronde 4 (A2): references typed in this paragraph ("zie Rom 8:28"), offered as a link with one tap
+  const recognised = s.linkable
+    ? findReferences(s.text, books, 5)
+        .flatMap((f) => f.refs)
+        .map((r) => ({
+          label: r.label,
+          translation: defaultTranslation,
+          book: r.book.code,
+          startChapter: r.startChapter,
+          startVerse: r.startVerse,
+          endChapter: r.endChapter,
+          endVerse: r.endVerse,
+        }))
+        .filter((p, i, all) => !s.passages.some((q) => samePassage(p, q)) && all.findIndex((q) => samePassage(p, q)) === i)
+        .slice(0, 6)
+    : [];
+
   /** BK-030: links the block with the cursor to the passage, without adding a block. */
   function linkToBlock() {
     const parsed = parse();
@@ -654,6 +671,26 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
           </p>
         )}
       </form>
+      {recognised.length > 0 && s.passages.length < MAX_PASSAGES_PER_BLOCK && (
+        <div className="block-links found-refs" role="group" aria-label="Herkende verwijzingen in deze alinea">
+          <span className="block-links-label">Koppelen?</span>
+          <ul>
+            {recognised.map((p) => (
+              <li key={`${p.book}${p.startChapter}:${p.startVerse}-${p.endChapter}:${p.endVerse}`}>
+                <button
+                  type="button"
+                  className="passage-chip toggle"
+                  aria-label={`${p.label} koppelen aan deze alinea`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setPassages(editor, s.blockPos, [...s.passages, p])}
+                >
+                  + {p.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {s.passages.length > 0 && (
         <div className="block-links" role="group" aria-label="Koppelingen van deze alinea">
           <span className="block-links-label">Deze alinea is gekoppeld aan</span>
@@ -679,10 +716,10 @@ function Toolbar({ editor, books, defaultTranslation }: { editor: Editor; books:
 }
 
 /** The top-level block holding the cursor: whether it can be linked, and its current links. */
-function currentBlock(e: Editor): { linkable: boolean; passages: LinkedPassage[]; blockPos: number } {
+function currentBlock(e: Editor): { linkable: boolean; passages: LinkedPassage[]; blockPos: number; text: string } {
   const { doc, selection } = e.state;
   const index = doc.resolve(selection.from).index(0);
-  if (index >= doc.childCount) return { linkable: false, passages: [], blockPos: -1 };
+  if (index >= doc.childCount) return { linkable: false, passages: [], blockPos: -1, text: "" };
   let pos = 0;
   for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
   const node = doc.child(index);
@@ -690,6 +727,7 @@ function currentBlock(e: Editor): { linkable: boolean; passages: LinkedPassage[]
     linkable: LINKABLE_TYPES.has(node.type.name),
     passages: (node.attrs.passages as LinkedPassage[] | null) ?? [],
     blockPos: pos,
+    text: node.textContent.slice(0, 5000),
   };
 }
 

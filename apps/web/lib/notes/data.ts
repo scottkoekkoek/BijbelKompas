@@ -128,6 +128,24 @@ export async function getNote(db: Db, id: string): Promise<Note | null> {
   };
 }
 
+/** Ronde 4 (A1): the sermon details of the most recent sermon note, to start the next one with. */
+export async function getLastSermon(db: Db): Promise<SermonDetails | null> {
+  const { data: last, error } = await db
+    .from("notes")
+    .select("id")
+    .eq("note_type", "preek")
+    .is("deleted_at", null)
+    .order("event_date", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!last) return null;
+  const { data } = await db.from("sermon_details").select(SERMON_COLUMNS).eq("note_id", last.id).maybeSingle();
+  const sd = data as unknown as SermonRow | null;
+  return sd ? { speaker: sd.speaker?.name ?? null, organization: sd.organization?.name ?? null, series: sd.series?.name ?? null, serviceType: sd.service_type } : null;
+}
+
 /** Names used before, offered as suggestions in the sermon fields. */
 export async function getSermonSuggestions(db: Db) {
   const names = async (table: "speakers" | "organizations" | "sermon_series") => {

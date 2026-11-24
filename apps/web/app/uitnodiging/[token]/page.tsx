@@ -38,6 +38,9 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
               : "Je bent uitgenodigd voor de besloten test. Maak hier je eigen account aan: je notities zijn alleen voor jou."}
           </p>
           <RedeemForm token={token} recovery={state === "herstel"} />
+          <p className="hint">
+            <Link href="/privacy">Lees wat er met je gegevens gebeurt</Link>
+          </p>
         </>
       ) : (
         <>

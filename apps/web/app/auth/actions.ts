@@ -50,7 +50,7 @@ export async function requestPasswordReset(_prev: FormState, formData: FormData)
   await supabase.auth.resetPasswordForEmail(parsed.data, {
     redirectTo: `${await origin()}/auth/callback?next=/wachtwoord-instellen`,
   });
-  return { ok: "Als dit adres bij ons bekend is, ontvang je een e-mail met een link om een nieuw wachtwoord in te stellen." };
+  return { ok: "Als dit adres bij ons bekend is, ontvang je een e-mail met een link om een nieuw wachtwoord in te stellen. Geen mail ontvangen? Vraag dan een herstellink aan bij wie je heeft uitgenodigd." };
 }
 
 export async function setNewPassword(_prev: FormState, formData: FormData): Promise<FormState> {

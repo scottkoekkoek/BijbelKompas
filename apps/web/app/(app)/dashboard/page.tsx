@@ -4,10 +4,12 @@ import Link from "next/link";
 import { QuickNoteButton } from "@/components/study/QuickNoteButton";
 import { BookIcon, ChevronRightIcon, FolderIcon, NoteIcon, QuestionIcon, SearchIcon } from "@/components/icons";
 import { readerPath } from "@/lib/bible";
-import { getReadingPosition } from "@/lib/bible-data";
+import { getBooks, getReadingPosition, getTranslations, pickTranslation } from "@/lib/bible-data";
 import { listQuestions } from "@/lib/collections/data";
-import { countNotes, listNotes } from "@/lib/notes/data";
+import { countNotes, getLastSermon, listNotes } from "@/lib/notes/data";
+import { isSermonTime } from "@/lib/notes/preekmodus";
 import { createClient } from "@/lib/supabase/server";
+import { Welcome } from "./Welcome";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -27,14 +29,27 @@ function greeting(now: Date) {
 export default async function DashboardPage() {
   const supabase = await createClient();
   // Ronde 4 (V4): counted in the database, so the numbers stay right beyond 200 notes
-  const [position, recent, total, concepts, questions] = await Promise.all([
+  const [position, recent, total, concepts, questions, prefs, books, translations, lastSermon] = await Promise.all([
     getReadingPosition(supabase),
     listNotes(supabase, {}, 5),
     countNotes(supabase),
     countNotes(supabase, { status: "concept" }),
     listQuestions(supabase, "lopend"),
+    supabase.from("user_preferences").select("welcome_dismissed_at").maybeSingle(),
+    getBooks(supabase),
+    getTranslations(supabase),
+    getLastSermon(supabase),
   ]);
+  const quick = {
+    books: books.map((b) => ({ code: b.code, name: b.name, chapterCount: b.chapterCount })),
+    translation: pickTranslation(translations, undefined, null)?.code ?? "SV",
+    lastSermon,
+  };
+  // Ronde 4 (V8): a new account (no notes yet) sees the welcome until it is closed
+  const showWelcome = total === 0 && prefs.data !== null && !prefs.data.welcome_dismissed_at;
   const now = new Date();
+  // Ronde 4 (A1): on Sunday during service times, the sermon button comes first
+  const sermonTime = isSermonTime(now);
   // the same count as the "Lopend" tab it links to: open and in research
   const openQuestions = questions.length;
   const count = (n: number) => String(n);
@@ -47,13 +62,16 @@ export default async function DashboardPage() {
           <h1>{greeting(now)}</h1>
         </div>
         <div className="dash-hero-actions">
-          <QuickNoteButton />
+          {sermonTime && <QuickNoteButton {...quick} sermonFirst className="button" />}
+          <QuickNoteButton {...quick} />
           <Link className="button" href="/notes/new">
             <NoteIcon size={18} />
             Nieuwe notitie
           </Link>
         </div>
       </header>
+
+      {showWelcome && <Welcome />}
 
       <div className="dash-grid">
         <div className="dash-stack">

@@ -2,6 +2,8 @@
 // Every icon here is decorative (aria-hidden); the link or button around it carries the name.
 import {
   Archive,
+  LockKeyhole,
+  MessageSquareText,
   ArchiveRestore,
   PanelLeftClose,
   PanelLeftOpen,
@@ -74,6 +76,8 @@ export const MenuHideIcon = make(PanelLeftClose, 18);
 export const MenuShowIcon = make(PanelLeftOpen, 18);
 export const ShieldIcon = make(Shield, 22);
 export const UserPlusIcon = make(UserPlus, 18);
+export const FeedbackIcon = make(MessageSquareText, 22);
+export const PrivacyIcon = make(LockKeyhole, 22);
 
 /** The app mark: a compass on the evergreen tile. */
 export function BrandMark() {

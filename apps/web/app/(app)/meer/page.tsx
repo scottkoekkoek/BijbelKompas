@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRightIcon, FolderIcon, QuestionIcon, SettingsIcon, ShieldIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
+import { ChevronRightIcon, FeedbackIcon, FolderIcon, PrivacyIcon, QuestionIcon, SettingsIcon, ShieldIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
 import { LogoutButton } from "@/components/sync/LogoutButton";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,6 +21,8 @@ const GROUPS = [
     items: [
       { href: "/settings", label: "Instellingen", desc: "Weergave, Bijbel, AI en export", Icon: SettingsIcon },
       { href: "/sync", label: "Offline en synchronisatie", desc: "Wat er op dit apparaat staat", Icon: SyncIcon },
+      { href: "/feedback", label: "Feedback", desc: "Laat weten wat beter kan", Icon: FeedbackIcon },
+      { href: "/privacy", label: "Privacy", desc: "Wat er bewaard wordt en waar", Icon: PrivacyIcon },
     ],
   },
 ];
