@@ -1785,3 +1785,7 @@ dialog.sheet::backdrop { background: var(--overlay); animation: fade-in var(--du
 /* long book names (1 Thessalonicenzen) wrap at a hyphen, not in the middle of a syllable */
 .book-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); }
 .book-list-name { overflow-wrap: normal; hyphens: auto; }
+
+/* Ronde 4: AI-limiet per account in Beheer */
+.user-limit-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+.user-limit-form input[type="number"] { width: 9.5rem; min-height: 44px; }

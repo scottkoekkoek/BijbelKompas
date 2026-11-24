@@ -1,6 +1,6 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { AiProvider, ExplainInput, Fragment, OutlineInput, OutlinePoint } from "./provider";
 import { checkedSources } from "./sources";
 
@@ -100,7 +100,13 @@ export async function decide(db: Db, id: string, status: Exclude<AiSuggestion["s
   return true;
 }
 
-type Reservation = { ok: true; job: { id: string; status: "gereserveerd" | "klaar" } } | { ok: false; kind: "ai_off" | "budget" | "failed" };
+/**
+ * Ronde 4 (ADR-020): `token` closes the job. Only its sha-256 goes to the database, and only this
+ * server process knows the token, so a browser with the same session cannot finish the job at € 0.
+ */
+type Reservation =
+  | { ok: true; job: { id: string; status: "gereserveerd" | "klaar"; token: string } }
+  | { ok: false; kind: "ai_off" | "budget" | "busy" | "failed" };
 
 /**
  * Reserves the estimated cost under an idempotency key. A finished job with the same key is given
@@ -112,6 +118,7 @@ async function reserve(
   a: { jobType: "analyse" | "vraag" | "uitleg" | "opzet"; key: string; estimate: number; provider: AiProvider; noteId?: string; revision?: number },
 ): Promise<Reservation> {
   for (let attempt = 1; attempt <= 3; attempt++) {
+    const token = randomBytes(32).toString("base64url");
     const { data, error } = await db
       .rpc("ai_reserve", {
         p_job_type: a.jobType,
@@ -121,22 +128,25 @@ async function reserve(
         p_model: a.provider.model,
         p_note_id: a.noteId ?? null,
         p_revision: a.revision ?? null,
+        p_finish_hash: createHash("sha256").update(token).digest("hex"),
       })
       .single();
     if (error) {
       if (error.code === "42501") return { ok: false, kind: "ai_off" };
       if (error.code === "53400") return { ok: false, kind: "budget" };
+      // the same job is still running (a double tap, a second tab): do not pay twice
+      if (error.code === "55P03") return { ok: false, kind: "busy" };
       throw error;
     }
     const job = data as { id: string; status: "gereserveerd" | "klaar" | "mislukt" };
-    if (job.status !== "mislukt") return { ok: true, job: { id: job.id, status: job.status } };
+    if (job.status !== "mislukt") return { ok: true, job: { id: job.id, status: job.status, token } };
   }
   return { ok: false, kind: "failed" };
 }
 
 export type AnalyseResult =
   | { ok: true; jobId: string; added: number; reused: boolean }
-  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "failed" };
+  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "busy" | "failed" };
 
 /**
  * BK-039 / spec §13.3, §8: an analysis of a finished note. Checks AI on/off, the note, the budget
@@ -185,12 +195,12 @@ export async function analyseNote(db: Db, provider: AiProvider, noteId: string):
     const out = await provider.analyse(input);
     const { data: added, error: e3 } = await db.rpc("ai_add_suggestions", { p_job_id: job.id, p: out.suggestions });
     if (e3) throw e3;
-    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    const fin = await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
     if (fin.error) throw fin.error;
     return { ok: true, jobId: job.id, added: added as number, reused: false };
   } catch (err) {
     // the reservation counts as spent: what a failed call cost is not known
-    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateEur(input) });
+    await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: provider.estimateEur(input) });
     throw err;
   }
 }
@@ -219,7 +229,7 @@ export type AiAnswer = {
 
 export type AskResult =
   | { ok: true; answer: AiAnswer; reused: boolean }
-  | { ok: false; kind: "ai_off" | "budget" | "failed" };
+  | { ok: false; kind: "ai_off" | "budget" | "busy" | "failed" };
 
 type AnswerRow = { id: string; question: string; answer: string; uncertain: boolean; model_version: string; created_at: string; sources: { noteId: string; blockId: string; revision: number; blockHash: string; quote: string }[] };
 
@@ -295,11 +305,11 @@ export async function askNotes(db: Db, provider: AiProvider, question: string): 
       .rpc("ai_add_answer", { p_job_id: job.id, p_question: question, p_answer: out.text, p_uncertain: out.uncertain, p_sources: sources })
       .single();
     if (saved.error) throw saved.error;
-    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    const fin = await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
     if (fin.error) throw fin.error;
     return { ok: true, answer: await toAnswer(db, saved.data as AnswerRow), reused: false };
   } catch (err) {
-    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateAskEur(input) });
+    await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: provider.estimateAskEur(input) });
     throw err;
   }
 }
@@ -342,7 +352,7 @@ const toExplanation = (e: ExplanationRow): AiExplanation => ({
 
 export type ExplainResult =
   | { ok: true; explanation: AiExplanation; reused: boolean }
-  | { ok: false; kind: "ai_off" | "not_allowed" | "not_found" | "too_long" | "budget" | "failed" };
+  | { ok: false; kind: "ai_off" | "not_allowed" | "not_found" | "too_long" | "budget" | "busy" | "failed" };
 
 /**
  * ADR-017: an explanation of selected verses. Only text of a translation with
@@ -407,11 +417,11 @@ export async function explainVerses(
       })
       .single();
     if (saved.error) throw saved.error;
-    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    const fin = await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
     if (fin.error) throw fin.error;
     return { ok: true, explanation: toExplanation(saved.data as ExplanationRow), reused: false };
   } catch (err) {
-    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateExplainEur(input) });
+    await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: provider.estimateExplainEur(input) });
     throw err;
   }
 }
@@ -467,7 +477,7 @@ export async function latestOutline(db: Db, noteId: string): Promise<AiOutline |
 
 export type OutlineResult =
   | { ok: true; outline: AiOutline; reused: boolean }
-  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "failed" };
+  | { ok: false; kind: "not_found" | "not_finished" | "ai_off" | "budget" | "busy" | "failed" };
 
 /**
  * ADR-018: an outline and summary of a finished note, as a proposal next to it. Same order as every
@@ -518,11 +528,11 @@ export async function outlineNote(db: Db, provider: AiProvider, noteId: string):
       .rpc("ai_add_outline", { p_job_id: job.id, p_summary: out.summary, p_main_thought: out.mainThought, p_points: out.points, p_application: out.application })
       .single();
     if (saved.error) throw saved.error;
-    const fin = await db.rpc("ai_finish", { p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
+    const fin = await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: true, p_actual: Math.min(Math.max(out.costEur, 0), 1) });
     if (fin.error) throw fin.error;
     return { ok: true, outline: toOutline(saved.data as OutlineRow, hash), reused: false };
   } catch (err) {
-    await db.rpc("ai_finish", { p_job_id: job.id, p_ok: false, p_actual: provider.estimateOutlineEur(input) });
+    await db.rpc("ai_finish", { p_token: job.token, p_job_id: job.id, p_ok: false, p_actual: provider.estimateOutlineEur(input) });
     throw err;
   }
 }

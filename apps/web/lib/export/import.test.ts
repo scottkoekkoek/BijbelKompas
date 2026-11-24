@@ -32,6 +32,15 @@ describe("reading an export back (AT-15)", () => {
     expect(r.data.extras.highlights).toEqual([]); // exports from before Sprint 9 have none
   });
 
+  it("reads reading progress (Ronde 4); older exports have none, a damaged verse is refused", () => {
+    const r = readExport(file({ readVerses: ["JHN.3.16", "1JN.4.8"] }));
+    if (!r.ok) throw new Error(r.message);
+    expect(r.data.extras.readVerses).toEqual(["JHN.3.16", "1JN.4.8"]);
+    const old = readExport(file());
+    expect(old.ok && old.data.extras.readVerses).toEqual([]);
+    expect(readExport(file({ readVerses: ["Johannes 3:16"] })).ok).toBe(false);
+  });
+
   it("refuses other files, newer versions and damaged notes with a clear message", () => {
     expect(readExport({ hello: 1 })).toEqual({ ok: false, message: "Dit is geen BijbelKompas-export." });
     expect(readExport(file({ version: 2 }))).toMatchObject({ ok: false, message: expect.stringContaining("versie 2") });

@@ -7,11 +7,12 @@ import { createClient } from "@/lib/supabase/server";
 import { revokeLink, setAccess } from "./actions";
 import { BudgetForm } from "./BudgetForm";
 import { LinkForm } from "./LinkForm";
+import { UserLimitForm } from "./UserLimitForm";
 
 export const metadata: Metadata = { title: "Beheer" };
 
 type Invitation = { id: string; kind: "uitnodiging" | "herstel"; email: string; created_at: string; expires_at: string; revoked_at: string | null; used_at: string | null };
-type Account = { user_id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null; is_admin: boolean; notes: number };
+type Account = { user_id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null; is_admin: boolean; notes: number; ai_limit_eur: number | null };
 
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Amsterdam" });
 const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
@@ -111,8 +112,15 @@ export default async function AdminPage() {
                   </span>
                   <span className="note-list-meta">
                     <span className={`badge ${closed ? "muted" : "afgerond"}`}>{closed ? "Toegang ingetrokken" : a.is_admin ? "Beheerder" : "Actief"}</span>
-                    sinds {fmt(a.created_at)} · laatst ingelogd {fmt(a.last_sign_in_at)} · {a.notes} {a.notes === 1 ? "notitie" : "notities"}
+                    sinds {fmt(a.created_at)} · laatst ingelogd {fmt(a.last_sign_in_at)} · {a.notes} {a.notes === 1 ? "notitie" : "notities"} · AI{" "}
+                    {a.ai_limit_eur === null ? `${eur.format(Number(limits.ai_user_limit_eur))} per maand (standaard)` : `${eur.format(Number(a.ai_limit_eur))} per maand (eigen limiet)`}
                   </span>
+                  <UserLimitForm
+                    userId={a.user_id}
+                    email={a.email}
+                    limit={a.ai_limit_eur === null ? null : Number(a.ai_limit_eur)}
+                    defaultLimit={Number(limits.ai_user_limit_eur)}
+                  />
                 </div>
                 {!self && (
                   <div className="admin-row-actions">
@@ -140,7 +148,8 @@ export default async function AdminPage() {
         <h2 id="ai-budget">AI-budget</h2>
         <p className="page-intro">
           Deze maand is door alle accounts samen {eur.format(pilotUsed)} gebruikt. Nieuwe AI-taken stoppen bij 90% van het budget per account of van
-          het gezamenlijke budget, wat het eerst bereikt wordt. Wie een ander model kiest, houdt hetzelfde budget.
+          het gezamenlijke budget, wat het eerst bereikt wordt. Wie een ander model kiest, houdt hetzelfde budget. Het bedrag per account hieronder is de
+          standaard; bij Accounts geef je iemand een eigen limiet.
         </p>
         <BudgetForm userLimit={Number(limits.ai_user_limit_eur)} pilotLimit={Number(limits.ai_pilot_limit_eur)} />
       </section>

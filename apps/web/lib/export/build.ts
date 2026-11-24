@@ -40,7 +40,7 @@ type RevisionRow = { note_id: string; revision_number: number; reason: string; c
 type SermonRow = { note_id: string; service_type: string | null; speaker: { name: string } | null; organization: { name: string } | null; series: { name: string } | null };
 
 export async function collectExport(db: Db, now = new Date()): Promise<ExportData> {
-  const [notes, docs, revisions, sermons, templates, prefs, position, collections, collectionItems, questions, questionNotes, questionPassages, highlights] = await Promise.all([
+  const [notes, docs, revisions, sermons, templates, prefs, position, collections, collectionItems, questions, questionNotes, questionPassages, highlights, readVerses] = await Promise.all([
     all<NoteRow>((a, b) =>
       db.from("notes")
         .select("id, title, note_type, status, event_date, created_at, updated_at, completed_at, archived_at, document_version")
@@ -91,6 +91,12 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
       db.from("highlights")
         .select("id, label, translation, book, start_chapter, start_verse, end_chapter, end_verse, color, annotation, created_at, updated_at")
         .order("start_order").order("id").range(a, b),
+    ),
+    // Ronde 4: reading progress, by canonical verse (not by internal id, so it fits any database)
+    all<{ verse: { chapter_number: number; verse_number: number; book: { book_code: string } | null } | null }>((a, b) =>
+      db.from("read_verses")
+        .select("verse:bible_verses(chapter_number, verse_number, book:bible_books(book_code))")
+        .order("verse_id").range(a, b),
     ),
   ]);
   if (prefs.error) throw prefs.error;
@@ -145,6 +151,9 @@ export async function collectExport(db: Db, now = new Date()): Promise<ExportDat
     questionNotes: questionNotes.filter(keptLink),
     questionPassages,
     highlights,
+    readVerses: readVerses
+      .map((r) => (r.verse?.book ? `${r.verse.book.book_code}.${r.verse.chapter_number}.${r.verse.verse_number}` : null))
+      .filter((v): v is string => v !== null),
   };
 }
 
