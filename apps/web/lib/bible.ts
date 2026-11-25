@@ -50,6 +50,12 @@ export function readerPath(book: string, chapter: number, translation?: string):
   return `/bible/${book}/${chapter}${translation ? `?v=${translation}` : ""}`;
 }
 
+/** Ronde 4 (V7): "Verder lezen" lands on the verse where you were (`plek`), without marking it. */
+export function resumePath(book: string, chapter: number, translation: string | undefined, verse: number | null): string {
+  const base = readerPath(book, chapter, translation);
+  return verse && verse > 1 ? `${base}${base.includes("?") ? "&" : "?"}plek=${verse}` : base;
+}
+
 export type PassageTarget = {
   book: string;
   startChapter: number;

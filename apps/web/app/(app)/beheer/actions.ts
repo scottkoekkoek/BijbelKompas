@@ -106,3 +106,29 @@ export async function setAiBudget(_prev: BudgetState, formData: FormData): Promi
   revalidatePath("/settings");
   return { ok: true };
 }
+
+const UserLimitInput = z.object({
+  user: z.uuid(),
+  limit: z.union([z.literal(""), z.coerce.number().min(0, "Kies een bedrag van 0 of meer.").max(100, "Per account kan hoogstens € 100 per maand.")]),
+});
+
+/** Ronde 4 (ADR-020): an own monthly AI limit for one account; empty = the default. Checked in the database. */
+export async function setUserAiLimit(_prev: BudgetState, formData: FormData): Promise<BudgetState> {
+  const parsed = UserLimitInput.safeParse({
+    user: formData.get("user"),
+    limit: String(formData.get("limit") ?? "").trim().replace(",", "."),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Controleer het bedrag." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pilot_set_user_ai_limit", {
+    p_user: parsed.data.user,
+    p_limit: parsed.data.limit === "" ? null : parsed.data.limit,
+  });
+  if (error) {
+    if (error.code === "42501") return { error: "Alleen een beheerder kan dit." };
+    console.error(JSON.stringify({ level: "error", route: "beheer/setUserAiLimit", code: error.code ?? null }));
+    return { error: "De limiet kon niet worden opgeslagen." };
+  }
+  revalidatePath("/beheer");
+  return { ok: true };
+}

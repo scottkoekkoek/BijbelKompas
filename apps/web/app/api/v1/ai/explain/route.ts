@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     if (r.kind === "not_allowed") return errorResponse("FORBIDDEN", "Deze vertaling mag niet naar AI. Kies de Statenvertaling.", requestId);
     if (r.kind === "not_found") return errorResponse("NOT_FOUND", "Deze verzen zijn niet gevonden.", requestId);
     if (r.kind === "too_long") return errorResponse("INVALID_INPUT", `Kies hoogstens ${MAX_EXPLAIN_VERSES} verzen.`, requestId);
+    if (r.kind === "busy") return errorResponse("RATE_LIMITED", "Deze AI-taak loopt al. Wacht even en probeer het dan opnieuw; er wordt niet dubbel betaald.", requestId);
     if (r.kind === "failed") return errorResponse("INTERNAL", "Deze uitleg is drie keer mislukt. Er wordt niet opnieuw betaald.", requestId);
     return errorResponse("RATE_LIMITED", "Het AI-budget van deze maand is op. Lezen werkt gewoon door.", requestId);
   } catch (err) {

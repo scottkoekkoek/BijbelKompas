@@ -56,6 +56,12 @@ export type ChapterResponse = z.infer<typeof ChapterResponse>;
 
 /** PUT /api/v1/me/reading-position */
 export const ReadingPositionInput = z
-  .object({ translation: TranslationCode, book: BookCode, chapter: z.number().int().min(1).max(150) })
+  .object({
+    translation: TranslationCode,
+    book: BookCode,
+    chapter: z.number().int().min(1).max(150),
+    /** Ronde 4 (V7): the verse at the top of the screen; left out = the start of the chapter */
+    verse: z.number().int().min(1).max(200).optional(),
+  })
   .strict();
 export type ReadingPositionInput = z.infer<typeof ReadingPositionInput>;

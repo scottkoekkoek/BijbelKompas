@@ -1,6 +1,8 @@
 import "server-only";
 import type { BibleBook, ChapterResponse } from "@bk/schemas";
 import type { createClient } from "@/lib/supabase/server";
+import { localDate } from "@/lib/notes/preekmodus";
+import { PLANS, planDays, planStatus } from "@/lib/reading/plans";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -132,10 +134,20 @@ export async function getBookForOffline(db: Db, translation: ReaderTranslation, 
 export async function getReadingPosition(db: Db) {
   const { data } = await db
     .from("reading_positions")
-    .select("chapter_number, bible_books!inner(book_code, name), bible_translations!inner(code)")
+    .select("chapter_number, verse_number, bible_books!inner(book_code, name), bible_translations!inner(code)")
     .maybeSingle();
   if (!data) return null;
   const book = data.bible_books as unknown as { book_code: string; name: string };
   const tr = data.bible_translations as unknown as { code: string };
-  return { bookCode: book.book_code, bookName: book.name, chapter: data.chapter_number, translation: tr.code };
+  return { bookCode: book.book_code, bookName: book.name, chapter: data.chapter_number, verse: (data.verse_number as number | null) ?? null, translation: tr.code };
+}
+
+/** Ronde 4 (C2): the owner's reading plan, with today's portion (or null without a plan). */
+export async function getReadingPlan(db: Db) {
+  const { data } = await db.from("reading_plans").select("plan_key, started_on, days_done").maybeSingle();
+  if (!data) return null;
+  const key = data.plan_key as keyof typeof PLANS;
+  const books = await getBooks(db);
+  const days = planDays(key, books.map((b) => ({ code: b.code, name: b.name, chapterCount: b.chapterCount })));
+  return { key, name: PLANS[key].name, startedOn: data.started_on as string, ...planStatus(days, data.started_on as string, data.days_done as number, localDate(new Date())) };
 }

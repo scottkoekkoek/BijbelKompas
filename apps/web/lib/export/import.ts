@@ -42,6 +42,8 @@ export const ImportExtras = z.object({
   questionPassages: Rows,
   templates: Rows,
   highlights: Rows,
+  /** Ronde 4: read verses as "JHN.3.16" (older exports have none) */
+  readVerses: z.array(z.string().regex(/^[1-3]?[A-Z]{2,3}\.\d{1,3}\.\d{1,3}$/)).max(40000).default([]),
 });
 export type ImportExtras = z.infer<typeof ImportExtras>;
 

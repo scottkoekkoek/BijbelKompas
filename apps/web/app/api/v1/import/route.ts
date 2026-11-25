@@ -41,12 +41,14 @@ export async function POST(request: Request) {
       if (error) throw error;
       return json({ added: data as number }, requestId);
     }
-    const { highlights, ...extras } = step.extras;
+    const { highlights, readVerses, ...extras } = step.extras;
     const { data, error } = await db.rpc("import_extras", { p: extras, p_note_map: step.noteMap });
     if (error) throw error;
     const marked = await db.rpc("import_highlights", { p: highlights });
     if (marked.error) throw marked.error;
-    const counts = { ...(data as Record<string, number>), highlights: marked.data as number };
+    const read = await db.rpc("import_read_verses", { p: readVerses });
+    if (read.error) throw read.error;
+    const counts = { ...(data as Record<string, number>), highlights: marked.data as number, readVerses: read.data as number };
     console.info(JSON.stringify({ level: "info", requestId, route: "POST /import", counts }));
     return json({ added: counts }, requestId);
   } catch (err) {

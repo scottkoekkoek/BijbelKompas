@@ -13,7 +13,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import type { AiProvider, AnalysisInput, AskInput, AskOutput, ExplainInput, ExplainOutput, OutlineInput, OutlineOutput, ProposedSuggestion } from "./provider";
+import type { AiProvider, AnalysisInput, AskInput, AskOutput, DiscussionOutput, ExplainInput, ExplainOutput, OutlineInput, OutlineOutput, ProposedSuggestion } from "./provider";
 
 /** USD per million tokens (Anthropic list prices). Counted 1:1 as euros: that over-estimates a little, which is the safe side for the budget. */
 export const PRICES: Record<string, { input: number; output: number }> = {
@@ -64,6 +64,15 @@ const OUTLINE_RULES = [
   "summary: een samenvatting in 2 tot 4 zinnen. mainThought: de kerngedachte in één zin. points: de hoofdpunten in de volgorde van de notitie (hoogstens 7), elk met een korte kop en 0 tot 4 korte subpunten. application: de toepassing die in de notitie staat, of een lege tekst als die er niet in staat.",
   "Schrijf in de woorden en de toon van de gebruiker, zonder opmaak.",
 ].join("\n");
+
+const DISCUSSION_RULES = [
+  "Hieronder staat één afgeronde notitie van de gebruiker (bijvoorbeeld aantekeningen bij een preek).",
+  "Maak 5 gespreksvragen voor een kring of gespreksgroep, alleen op basis van wat in de notitie staat. Voeg geen eigen theologie toe.",
+  "Begin met een open vraag over wat opviel, dan vragen over de Bijbeltekst en de kerngedachte, en eindig met een vraag over toepassing of gebed.",
+  "Elke vraag is één korte, open zin (geen ja/nee-vraag), in gewone taal en zonder opmaak of nummering.",
+].join("\n");
+
+const DiscussionSchema = z.object({ questions: z.array(z.string()) });
 
 const OutlineSchema = z.object({
   summary: z.string(),
@@ -130,6 +139,10 @@ export function outlinePrompt(input: OutlineInput): string {
   return `${OUTLINE_RULES}\n\n<notitie titel="${escapeTagText(input.title || "Naamloze notitie")}" soort="${escapeTagText(input.noteType)}">\n${escapeTagText(input.text.slice(0, MAX_NOTE_CHARS))}\n</notitie>`;
 }
 
+export function discussionPrompt(input: OutlineInput): string {
+  return `${DISCUSSION_RULES}\n\n<notitie titel="${escapeTagText(input.title || "Naamloze notitie")}" soort="${escapeTagText(input.noteType)}">\n${escapeTagText(input.text.slice(0, MAX_NOTE_CHARS))}\n</notitie>`;
+}
+
 export function analysePrompt(input: AnalysisInput): string {
   const cands = input.candidates
     .slice(0, MAX_CANDIDATES)
@@ -188,9 +201,20 @@ export function claudeProvider(opts: { client: ClaudeClient; model?: string }): 
     };
   }
 
+  async function discussion(input: OutlineInput): Promise<DiscussionOutput> {
+    const { parsed, cost } = await call(DiscussionSchema, discussionPrompt(input));
+    if (!parsed) return { costEur: cost, questions: [] };
+    return {
+      costEur: cost,
+      questions: parsed.questions.slice(0, 8).map((q) => unescapeTagText(q).trim().slice(0, 400)).filter(Boolean),
+    };
+  }
+
   return {
     name: "claude",
     outline,
+    discussion,
+    estimateDiscussionEur: (input) => estimate(model, Math.min(input.text.length, MAX_NOTE_CHARS)),
     estimateOutlineEur: (input) => estimate(model, Math.min(input.text.length, MAX_NOTE_CHARS)),
     explain,
     estimateExplainEur: (input) => estimate(model, input.verses.reduce((n, v) => n + v.text.length + 6, 0)),

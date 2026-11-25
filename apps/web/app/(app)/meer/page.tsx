@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRightIcon, FolderIcon, QuestionIcon, SettingsIcon, ShieldIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
+import { ApplyIcon, ChevronRightIcon, FeedbackIcon, PlanIcon, FolderIcon, PrivacyIcon, QuestionIcon, SettingsIcon, ShieldIcon, SyncIcon, TemplateIcon, TimelineIcon } from "@/components/icons";
 import { LogoutButton } from "@/components/sync/LogoutButton";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +13,8 @@ const GROUPS = [
       { href: "/collections", label: "Collecties", desc: "Preekseries, thema's en studies", Icon: FolderIcon },
       { href: "/questions", label: "Onderzoeksvragen", desc: "Wat je nog wilt uitzoeken", Icon: QuestionIcon },
       { href: "/timeline", label: "Tijdlijn", desc: "Je notities op datum", Icon: TimelineIcon },
+      { href: "/toepassingen", label: "Toepassingen", desc: "Wat je wilde toepassen", Icon: ApplyIcon },
+      { href: "/leesplan", label: "Leesplan", desc: "Elke dag een vast stuk", Icon: PlanIcon },
       { href: "/templates", label: "Sjablonen", desc: "Vaste opbouw voor nieuwe notities", Icon: TemplateIcon },
     ],
   },
@@ -21,6 +23,8 @@ const GROUPS = [
     items: [
       { href: "/settings", label: "Instellingen", desc: "Weergave, Bijbel, AI en export", Icon: SettingsIcon },
       { href: "/sync", label: "Offline en synchronisatie", desc: "Wat er op dit apparaat staat", Icon: SyncIcon },
+      { href: "/feedback", label: "Feedback", desc: "Laat weten wat beter kan", Icon: FeedbackIcon },
+      { href: "/privacy", label: "Privacy", desc: "Wat er bewaard wordt en waar", Icon: PrivacyIcon },
     ],
   },
 ];

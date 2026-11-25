@@ -4,24 +4,57 @@
  * needed. Saved through the existing offline outbox (same as the editor), so it is kept on the
  * device first and then sent; tapping "Bewaar als concept" twice still makes one note, because
  * the note id is fixed when the form opens.
+ *
+ * Ronde 4 (A1, A2, V6): "Ik zit in een preek" makes it a sermon note of today, with the church of the
+ * last sermon filled in; a reference typed in the text ("Joh 15:5") can be linked with one tap.
  */
-import { EMPTY_SERMON } from "@bk/schemas";
+import { EMPTY_SERMON, type SermonDetails } from "@bk/schemas";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { LinkedPassage } from "@/lib/notes/document";
+import { localDate, sermonPreset } from "@/lib/notes/preekmodus";
+import { quickNoteDocument, quickNoteTitle, type QuickPassage } from "@/lib/notes/quick";
+import { findReferences, type BookInfo, type ParsedRef } from "@/lib/notes/reference";
 import { listOutbox, saveLocal } from "@/lib/offline/db";
 import { syncEngine } from "@/lib/offline/engine";
-import { quickNoteDocument, quickNoteTitle, type QuickPassage } from "@/lib/notes/quick";
 
 type State = "edit" | "saving" | "local" | "synced" | "error";
-type Props = { passage: QuickPassage | null; onClose: () => void };
+export type SermonOption = { start: boolean; last: SermonDetails | null };
+type Props = {
+  passage: QuickPassage | null;
+  onClose: () => void;
+  /** with the books, references in the text are recognised */
+  books?: BookInfo[];
+  translation?: string;
+  /** offers "Ik zit in een preek" (only without a passage) */
+  sermon?: SermonOption;
+};
 
-export function QuickNoteForm({ passage, onClose }: Props) {
+const keyOf = (text: string) => text.toLowerCase().replace(/[\s.]/g, "");
+const toLinked = (r: ParsedRef, translation: string): LinkedPassage => ({
+  translation,
+  book: r.book.code,
+  startChapter: r.startChapter,
+  startVerse: r.startVerse,
+  endChapter: r.endChapter,
+  endVerse: r.endVerse,
+  label: r.label,
+});
+
+export function QuickNoteForm({ passage, onClose, books, translation = "SV", sermon }: Props) {
   const ids = useId();
   const [noteId] = useState(() => crypto.randomUUID());
   const [text, setText] = useState("");
   const [state, setState] = useState<State>("edit");
   const [message, setMessage] = useState("");
+  const [isSermon, setIsSermon] = useState(Boolean(sermon?.start) && !passage);
+  const [details, setDetails] = useState<SermonDetails>(() => sermonPreset(new Date(), sermon?.last ?? null));
+  // accepted references: the typed text ("joh15:5") → the passage the writer chose
+  const [linked, setLinked] = useState<Map<string, ParsedRef>>(() => new Map());
   const saving = useRef(false);
+
+  const found = useMemo(() => (books ? findReferences(text, books) : []), [text, books]);
+  const shown = found.filter((f, i) => found.findIndex((g) => keyOf(g.text) === keyOf(f.text)) === i);
 
   // after saving: follow the outbox until the server has the note
   useEffect(() => {
@@ -39,6 +72,15 @@ export function QuickNoteForm({ passage, onClose }: Props) {
     };
   }, [state, noteId]);
 
+  function toggle(key: string, ref: ParsedRef) {
+    setLinked((prev) => {
+      const next = new Map(prev);
+      if (next.get(key)?.book.code === ref.book.code) next.delete(key);
+      else next.set(key, ref);
+      return next;
+    });
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (saving.current || state === "local" || state === "synced") return;
@@ -50,12 +92,19 @@ export function QuickNoteForm({ passage, onClose }: Props) {
     setState("saving");
     setMessage("");
     const now = new Date();
+    const linksFor = (line: string) =>
+      books
+        ? findReferences(line, books).flatMap((f) => {
+            const r = linked.get(keyOf(f.text));
+            return r ? [toLinked(r, translation)] : [];
+          })
+        : [];
     const content = {
       title: quickNoteTitle(text, passage, now),
-      noteType: (passage ? "bijbelstudie" : "vrij") as "bijbelstudie" | "vrij",
-      eventDate: null,
-      sermon: EMPTY_SERMON,
-      document: quickNoteDocument(text, passage, () => crypto.randomUUID()),
+      noteType: (isSermon ? "preek" : passage ? "bijbelstudie" : "vrij") as "preek" | "bijbelstudie" | "vrij",
+      eventDate: isSermon ? localDate(now) : null,
+      sermon: isSermon ? details : EMPTY_SERMON,
+      document: quickNoteDocument(text, passage, () => crypto.randomUUID(), linksFor),
     };
     try {
       await saveLocal(noteId, { content }, { createdLocally: true });
@@ -66,7 +115,12 @@ export function QuickNoteForm({ passage, onClose }: Props) {
       const res = await fetch("/api/v1/notes", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: content.title, noteType: content.noteType, document: content.document }),
+        body: JSON.stringify({
+          title: content.title,
+          noteType: content.noteType,
+          document: content.document,
+          ...(content.eventDate ? { eventDate: content.eventDate } : {}),
+        }),
       }).catch(() => null);
       if (res?.ok) {
         setState("synced");
@@ -79,12 +133,36 @@ export function QuickNoteForm({ passage, onClose }: Props) {
   }
 
   const saved = state === "local" || state === "synced";
+  const setDetail = (k: "organization" | "serviceType", v: string) => setDetails((d) => ({ ...d, [k]: v.trim() ? v.slice(0, k === "organization" ? 120 : 60) : null }));
   return (
     <form className="quick-form" onSubmit={(e) => void save(e)} noValidate>
       {passage && (
         <p className="quick-passage">
           <span className="badge">Bij</span> {passage.label}
         </p>
+      )}
+      {sermon && !passage && (
+        <div className="quick-sermon">
+          <label className="check">
+            <input type="checkbox" checked={isSermon} disabled={saved} onChange={(e) => setIsSermon(e.target.checked)} />
+            Ik zit in een preek
+          </label>
+          {isSermon && (
+            <div className="quick-sermon-fields">
+              <p className="hint">Wordt een preeknotitie van vandaag, zodat je hem terugvindt in de tijdlijn.</p>
+              <div className="form-row">
+                <div className="field">
+                  <label htmlFor={`${ids}-org`}>Gemeente</label>
+                  <input id={`${ids}-org`} value={details.organization ?? ""} readOnly={saved} maxLength={120} onChange={(e) => setDetail("organization", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor={`${ids}-svc`}>Dienst</label>
+                  <input id={`${ids}-svc`} value={details.serviceType ?? ""} readOnly={saved} maxLength={60} onChange={(e) => setDetail("serviceType", e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
       <div className="field">
         <label htmlFor={`${ids}-text`}>Aantekening</label>
@@ -99,6 +177,26 @@ export function QuickNoteForm({ passage, onClose }: Props) {
           autoFocus
         />
       </div>
+      {shown.length > 0 && !saved && (
+        <div className="found-refs" role="group" aria-label="Herkende Bijbelverwijzingen">
+          <span className="hint">Koppelen?</span>
+          <ul>
+            {shown.flatMap((f) =>
+              f.refs.map((r) => {
+                const on = linked.get(keyOf(f.text))?.book.code === r.book.code;
+                return (
+                  <li key={`${keyOf(f.text)}-${r.book.code}`}>
+                    <button type="button" className={`passage-chip toggle${on ? " on" : ""}`} aria-pressed={on} onClick={() => toggle(keyOf(f.text), r)}>
+                      {on ? "✓ " : "+ "}
+                      {r.label}
+                    </button>
+                  </li>
+                );
+              }),
+            )}
+          </ul>
+        </div>
+      )}
       <p id={`${ids}-msg`} role="status" className={state === "error" || (state === "edit" && message) ? "field-error" : "hint"}>
         {state === "local"
           ? "Bewaard op dit apparaat. Wordt naar de server gestuurd…"
@@ -110,7 +208,7 @@ export function QuickNoteForm({ passage, onClose }: Props) {
         {saved ? (
           <>
             <button type="button" className="button secondary" onClick={onClose}>
-              Verder lezen
+              {passage ? "Verder lezen" : "Sluiten"}
             </button>
             <Link className="button" href={`/notes/${noteId}`}>
               Open in de editor

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fromRow, PREFERENCE_COLUMNS, type PreferencesRow } from "@/lib/preferences";
 import { getBudget } from "@/lib/ai/data";
 import { allowedModels, providerForUser } from "@/lib/ai/models";
+import { DeleteAccount } from "./DeleteAccount";
 import { PreferencesForm } from "./PreferencesForm";
 
 const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
@@ -96,6 +97,14 @@ export default async function SettingsPage() {
           toegevoegd: wat al in je account staat, blijft precies zoals het is.
         </p>
         <ImportExport />
+      </section>
+
+      <section className="settings-section" aria-labelledby="delete-heading">
+        <h2 id="delete-heading">Account verwijderen</h2>
+        <p className="page-intro">
+          Stop je met de test? Dan kun je je account met alles erin zelf verwijderen. Lees ook <Link href="/privacy">wat er met je gegevens gebeurt</Link>.
+        </p>
+        <DeleteAccount />
       </section>
 
       <section id="offline" className="settings-section" aria-labelledby="offline-heading">

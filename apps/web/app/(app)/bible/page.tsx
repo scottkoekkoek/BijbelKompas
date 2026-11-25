@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BookPicker } from "@/components/bible/BookPicker";
-import { readerPath } from "@/lib/bible";
+import { resumePath } from "@/lib/bible";
 import { getBooks, getReadingPosition } from "@/lib/bible-data";
 import { booksProgress } from "@/lib/reader/progress";
 import { createClient } from "@/lib/supabase/server";
@@ -15,13 +15,15 @@ export default async function BiblePage() {
   return (
     <>
       <h1>Bijbel</h1>
-      {position && (
-        <p className="continue">
-          <Link className="button" href={readerPath(position.bookCode, position.chapter, position.translation)}>
+      <p className="continue">
+        {position && (
+          <Link className="button" href={resumePath(position.bookCode, position.chapter, position.translation, position.verse)}>
             Verder lezen: {position.bookName} {position.chapter}
+            {position.verse && position.verse > 1 ? `:${position.verse}` : ""}
           </Link>
-        </p>
-      )}
+        )}{" "}
+        <Link className="button secondary" href="/leesplan">Leesplan</Link>
+      </p>
       <BookPicker books={books} progress={progress} />
     </>
   );

@@ -168,6 +168,17 @@ export default async function TimelinePage({ searchParams }: Props) {
         <p className="placeholder">{filtered ? "Geen notities gevonden met dit filter." : "Je hebt nog geen notities."}</p>
       ) : (
         <>
+          {/* Ronde 4 (V14): with years of notes, jump instead of scrolling */}
+          {groups.length + (undated.length > 0 ? 1 : 0) > 1 && (
+            <nav className="year-jump" aria-label="Spring naar een jaar">
+              {groups.map((g) => (
+                <a key={g.year} href={`#jaar-${g.year}`}>
+                  {g.year}
+                </a>
+              ))}
+              {undated.length > 0 && <a href="#zonder-datum">Zonder datum</a>}
+            </nav>
+          )}
           {groups.map((g) => (
             <section key={g.year} aria-labelledby={`jaar-${g.year}`} className="timeline-year">
               <h2 id={`jaar-${g.year}`}>{g.year}</h2>

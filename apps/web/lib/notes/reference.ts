@@ -94,3 +94,31 @@ export function refLabel(bookName: string, sc: number, sv: number, ec: number, e
   if (sc === ec) return formatReference(bookName, sc, { from: sv, to: ev });
   return `${bookName} ${sc}:${sv}-${ec}:${ev}`;
 }
+
+/** Ronde 4 (A2): a reference found inside running text, with every book it could mean. */
+export type FoundReference = { text: string; start: number; end: number; refs: ParsedRef[] };
+
+// Short Dutch words that would otherwise be read as a book name ("de 10:30" is a time, not Deuteronomium).
+const NOT_A_BOOK = new Set(["de", "het", "een", "en", "op", "om", "in", "is", "of", "te", "tot", "van", "voor", "na", "ja", "nee", "ik", "je", "we", "u", "al", "at", "rond", "vanaf"]);
+const IN_TEXT = /(^|[^\p{L}\d])((?:[1-3]\s?)?\p{L}[\p{L}.]{1,20})\s?(\d{1,3})\s?:\s?(\d{1,3})(?:\s?-\s?(\d{1,3})(?:\s?:\s?(\d{1,3}))?)?(?![\d:])/gu;
+
+/**
+ * Finds references written as "boek hoofdstuk:vers" in running text, e.g. "zie Rom 8:28" or
+ * "Joh 15:5-8". Only with a verse, so a plain "Ik 3" or a time ("om 10:30") is never a reference.
+ * An ambiguous name ("Jo 2:1") gives every possible book, so the writer can choose.
+ */
+export function findReferences(text: string, books: BookInfo[], max = 10): FoundReference[] {
+  const found: FoundReference[] = [];
+  for (const m of text.replace(/[–—]/g, "-").matchAll(IN_TEXT)) {
+    const [, lead, name, c, v, x, y] = m;
+    const word = name!.replace(/\.$/, "");
+    if (NOT_A_BOOK.has(word.toLowerCase())) continue;
+    const rest = `${c}:${v}${x ? `-${x}${y ? `:${y}` : ""}` : ""}`;
+    const parsed = referenceInSearch(`${word} ${rest}`, books);
+    if (!parsed || "error" in parsed) continue;
+    const start = m.index! + lead!.length;
+    found.push({ text: m[0].slice(lead!.length), start, end: m.index! + m[0].length, refs: parsed.refs.slice(0, 3) });
+    if (found.length >= max) break;
+  }
+  return found;
+}

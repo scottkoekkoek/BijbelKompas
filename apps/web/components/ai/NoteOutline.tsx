@@ -137,7 +137,7 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider, save
 
   return (
     <details ref={details} className="ai-outline" id="opzet">
-      <summary>Opzet en samenvatting</summary>
+      <summary>Samenvatting en opzet</summary>
       {outline && (
         <div className="card ai-answer">
           {outline.stale && (
@@ -218,7 +218,7 @@ export function NoteOutline({ noteId, title, noteType, aiEnabled, provider, save
       ) : outline && !outline.stale ? null : (
         <div className="button-row">
           <button type="button" className="button secondary" onClick={() => void make()} disabled={busy}>
-            {outline ? "Nieuwe opzet maken" : "Opzet maken"}
+            {outline ? "Nieuwe samenvatting maken" : "Samenvatting maken"}
           </button>
           <span className="hint">{provider.external ? `Stuurt deze notitie naar ${provider.name}.` : "Testaanbieder: er gaat niets naar buiten."}</span>
         </div>

@@ -24,6 +24,7 @@ export async function POST(request: Request) {
       return json({ answer: r.answer, reused: r.reused }, requestId);
     }
     if (r.kind === "ai_off") return errorResponse("FORBIDDEN", "AI staat uit. Zet AI-hulp aan bij Instellingen.", requestId);
+    if (r.kind === "busy") return errorResponse("RATE_LIMITED", "Deze AI-taak loopt al. Wacht even en probeer het dan opnieuw; er wordt niet dubbel betaald.", requestId);
     if (r.kind === "failed") return errorResponse("INTERNAL", "Deze vraag is drie keer mislukt. Er wordt niet opnieuw betaald.", requestId);
     return errorResponse("RATE_LIMITED", "Het AI-budget van deze maand is op. Gewoon zoeken werkt gewoon door.", requestId);
   } catch (err) {

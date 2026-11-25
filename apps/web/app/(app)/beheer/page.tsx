@@ -7,13 +7,16 @@ import { createClient } from "@/lib/supabase/server";
 import { revokeLink, setAccess } from "./actions";
 import { BudgetForm } from "./BudgetForm";
 import { LinkForm } from "./LinkForm";
+import { UserLimitForm } from "./UserLimitForm";
 
 export const metadata: Metadata = { title: "Beheer" };
 
 type Invitation = { id: string; kind: "uitnodiging" | "herstel"; email: string; created_at: string; expires_at: string; revoked_at: string | null; used_at: string | null };
-type Account = { user_id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null; is_admin: boolean; notes: number };
+type Feedback = { id: string; email: string; message: string; page: string | null; viewport: string | null; created_at: string };
+type Account = { user_id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null; is_admin: boolean; notes: number; ai_limit_eur: number | null };
 
 const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Amsterdam" });
+const dateTimeFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Amsterdam" });
 const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 const fmt = (d: string | null) => (d ? dateFmt.format(new Date(d)) : "nog niet");
 
@@ -28,13 +31,15 @@ export default async function AdminPage() {
   const supabase = await createClient();
   const { data: isAdmin } = await supabase.rpc("is_app_admin");
   if (isAdmin !== true) notFound();
-  const [{ data: me }, invitations, accounts, settings, budget] = await Promise.all([
+  const [{ data: me }, invitations, accounts, settings, budget, feedback] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("pilot_invitations").select("id, kind, email, created_at, expires_at, revoked_at, used_at").order("created_at", { ascending: false }).limit(100),
     supabase.rpc("pilot_accounts"),
     supabase.from("app_settings").select("ai_user_limit_eur, ai_pilot_limit_eur").maybeSingle(),
     supabase.rpc("ai_budget").maybeSingle(),
+    supabase.rpc("pilot_feedback", { p_limit: 100 }),
   ]);
+  const messages = (feedback.data ?? []) as Feedback[];
   const limits = (settings.data ?? { ai_user_limit_eur: 5, ai_pilot_limit_eur: 25 }) as { ai_user_limit_eur: number; ai_pilot_limit_eur: number };
   const pilotUsed = Number((budget.data as { pilot_used_eur?: number } | null)?.pilot_used_eur ?? 0);
   const keySet = createAdminClient() !== null;
@@ -111,8 +116,15 @@ export default async function AdminPage() {
                   </span>
                   <span className="note-list-meta">
                     <span className={`badge ${closed ? "muted" : "afgerond"}`}>{closed ? "Toegang ingetrokken" : a.is_admin ? "Beheerder" : "Actief"}</span>
-                    sinds {fmt(a.created_at)} · laatst ingelogd {fmt(a.last_sign_in_at)} · {a.notes} {a.notes === 1 ? "notitie" : "notities"}
+                    sinds {fmt(a.created_at)} · laatst ingelogd {fmt(a.last_sign_in_at)} · {a.notes} {a.notes === 1 ? "notitie" : "notities"} · AI{" "}
+                    {a.ai_limit_eur === null ? `${eur.format(Number(limits.ai_user_limit_eur))} per maand (standaard)` : `${eur.format(Number(a.ai_limit_eur))} per maand (eigen limiet)`}
                   </span>
+                  <UserLimitForm
+                    userId={a.user_id}
+                    email={a.email}
+                    limit={a.ai_limit_eur === null ? null : Number(a.ai_limit_eur)}
+                    defaultLimit={Number(limits.ai_user_limit_eur)}
+                  />
                 </div>
                 {!self && (
                   <div className="admin-row-actions">
@@ -140,9 +152,31 @@ export default async function AdminPage() {
         <h2 id="ai-budget">AI-budget</h2>
         <p className="page-intro">
           Deze maand is door alle accounts samen {eur.format(pilotUsed)} gebruikt. Nieuwe AI-taken stoppen bij 90% van het budget per account of van
-          het gezamenlijke budget, wat het eerst bereikt wordt. Wie een ander model kiest, houdt hetzelfde budget.
+          het gezamenlijke budget, wat het eerst bereikt wordt. Wie een ander model kiest, houdt hetzelfde budget. Het bedrag per account hieronder is de
+          standaard; bij Accounts geef je iemand een eigen limiet.
         </p>
         <BudgetForm userLimit={Number(limits.ai_user_limit_eur)} pilotLimit={Number(limits.ai_pilot_limit_eur)} />
+      </section>
+
+      {/* Ronde 4 (V9): what testers sent with the Feedback button, newest first */}
+      <section className="settings-section" aria-labelledby="feedback">
+        <h2 id="feedback">Feedback van testers</h2>
+        {messages.length === 0 ? (
+          <p className="page-intro">Nog geen feedback. Testers vinden de knop Feedback in de zijbalk en onder Meer.</p>
+        ) : (
+          <ul className="feedback-list">
+            {messages.map((f) => (
+              <li key={f.id}>
+                <p className="feedback-meta muted">
+                  {f.email} · {dateTimeFmt.format(new Date(f.created_at))}
+                  {f.page && <> · <code>{f.page}</code></>}
+                  {f.viewport && <> · scherm {f.viewport.replace("x", " × ")}</>}
+                </p>
+                <p className="feedback-message">{f.message}</p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </>
   );

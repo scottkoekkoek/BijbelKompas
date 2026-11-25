@@ -24,10 +24,14 @@ type Props = {
   translationCode: string;
   /** verse numbers that have at least one note */
   noted?: number[];
+  /** Ronde 4 (B1): how many of your notes each verse has */
+  notedCounts?: Record<number, number>;
   /** BK-013: the owner's highlights, in this translation's verse numbers */
   highlights?: ChapterHighlight[];
   /** audit BK-01: the verse or range a link pointed at; marked and scrolled into view */
   target?: { from: number; to: number } | null;
+  /** Ronde 4 (V7): the verse to scroll back to (from "Verder lezen"); not marked */
+  resumeAt?: number | null;
   /** feature 6: verse numbers the owner marked as read */
   read?: number[];
   /** ADR-017: set only when AI is on, a provider is set and this translation may go to AI */
@@ -37,10 +41,20 @@ type Props = {
 /** BK-012 (give it a key per chapter so the selection resets): tap a verse to select it, tap another to make a range; copy the reference or the text. */
 /** How many linked notes the selection bar shows before pointing to Mijn studie. */
 const LINKED_PREVIEW = 3;
+/** Ronde 4 (V7): staying this long in a chapter counts as reading it. */
+const READ_AFTER_MS = 10_000;
+
+/** The verse at the top of the screen (below the sticky header). */
+function topVerse(): number {
+  for (const el of document.querySelectorAll<HTMLElement>(".verse[id^='v']")) {
+    if (el.getBoundingClientRect().bottom > 110) return Number(el.id.slice(1)) || 1;
+  }
+  return 1;
+}
 const firstWord = (t: string) => /^\S*/.exec(t)?.[0] ?? "";
 const restOf = (t: string) => t.slice(firstWord(t).length);
 
-export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], highlights = [], target = null, read = [], explainWith = null }: Props) {
+export function VerseList({ verses, bookCode, bookName, chapter, translationCode, noted = [], notedCounts = {}, highlights = [], target = null, resumeAt = null, read = [], explainWith = null }: Props) {
   const router = useRouter();
   const [selection, setSelection] = useState<Selection>(null);
   const [marking, setMarking] = useState(false);
@@ -75,13 +89,43 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
     el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
   }, [target]);
 
-  // Remember where the owner is reading. Failing to save is harmless, so it stays silent.
+  // Ronde 4 (V7): back at the verse where you stopped reading
   useEffect(() => {
-    void fetch("/api/v1/me/reading-position", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ translation: translationCode, book: bookCode, chapter }),
-    }).catch(() => undefined);
+    if (!resumeAt) return;
+    document.getElementById(`v${resumeAt}`)?.scrollIntoView({ block: "start" });
+  }, [resumeAt]);
+
+  // Remember where the owner is reading, on verse level (V7). Only after really reading: scrolling
+  // through the chapter, or staying a while. Just opening a chapter (to look something up) leaves
+  // the position where it was. Failing to save is harmless, so it stays silent.
+  useEffect(() => {
+    let last = "";
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const save = () => {
+      const verse = topVerse();
+      const key = `${translationCode}-${bookCode}-${chapter}-${verse}`;
+      if (key === last) return;
+      last = key;
+      void fetch("/api/v1/me/reading-position", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ translation: translationCode, book: bookCode, chapter, verse }),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+    const onScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(save, 1200);
+    };
+    // the first scroll can come from landing on a verse (a link or "Verder lezen"): skip it
+    const arm = setTimeout(() => window.addEventListener("scroll", onScroll, { passive: true }), 1500);
+    const dwell = setTimeout(save, READ_AFTER_MS);
+    return () => {
+      clearTimeout(arm);
+      clearTimeout(dwell);
+      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [translationCode, bookCode, chapter]);
 
   const reference = formatReference(bookName, chapter, selection, translationCode);
@@ -182,11 +226,16 @@ export function VerseList({ verses, bookCode, bookName, chapter, translationCode
               >
                 {v.verse}
               </button>
-              {noted.includes(v.verse) && (
+              {noted.includes(v.verse) && ((notedCounts[v.verse] ?? 1) > 1 ? (
+                <span className="note-dot counted" title={`${notedCounts[v.verse]} notities bij dit vers`}>
+                  <span aria-hidden="true">{notedCounts[v.verse]}</span>
+                  <span className="visually-hidden">({notedCounts[v.verse]} notities)</span>
+                </span>
+              ) : (
                 <span className="note-dot" title="Er is een notitie bij dit vers">
                   <span className="visually-hidden">(notitie)</span>
                 </span>
-              )}{" "}
+              ))}{" "}
               <span className="verse-text" onClick={() => toggle(v.verse)}>
                 {firstWord(v.text)}
               </span>

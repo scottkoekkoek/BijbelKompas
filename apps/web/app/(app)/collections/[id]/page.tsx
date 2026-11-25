@@ -31,7 +31,7 @@ export default async function CollectionPage({ params }: Props) {
   const [notes, all, candidates, offline] = await Promise.all([
     collectionNotes(supabase, collection.id),
     listCollections(supabase),
-    listNotes(supabase),
+    listNotes(supabase, {}, 2000), // Ronde 4: every note can be picked, also old ones
     offlineCollections(supabase, [collection.id]),
   ]);
   const everything = all.some((c) => c.id === collection.id) ? all : [...all, collection];

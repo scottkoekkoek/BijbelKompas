@@ -17,6 +17,7 @@ import type {
 import { EMPTY_SERMON } from "@bk/schemas";
 import type { createClient } from "@/lib/supabase/server";
 import { canonicalJson, deriveIndexes, emptyDocument, referenceBlock, validateDocument, type PMNode } from "./document";
+import { applicationsFromBlocks, type BlockRow } from "./applications";
 import { refLabel, type BookInfo } from "./reference";
 import { buildDocument, findBuiltin } from "./templates";
 
@@ -58,8 +59,10 @@ export const documentHash = (doc: NoteDocument) => sha256(canonicalJson(doc));
 
 export type Filters = { q?: string; type?: NoteType; status?: NoteStatus; archived?: boolean; trash?: boolean };
 
-export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]> {
-  let query = db.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false }).limit(200);
+function notesQuery(db: Db, f: Filters, count = false) {
+  let query = count
+    ? db.from("notes").select("id", { count: "exact", head: true })
+    : db.from("notes").select(NOTE_COLUMNS).order("updated_at", { ascending: false }).order("id");
   // Ronde 3 §3: the trash is its own list; every other list leaves it out
   if (f.trash) query = query.not("deleted_at", "is", null);
   else {
@@ -69,9 +72,34 @@ export async function listNotes(db: Db, f: Filters = {}): Promise<NoteSummary[]>
   if (f.type) query = query.eq("note_type", f.type);
   if (f.status) query = query.eq("status", f.status);
   if (f.q) query = query.ilike("title", `%${f.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`);
-  const { data, error } = await query;
+  return query;
+}
+
+/** The most recently changed notes (at most `limit`): for pickers and small overviews. */
+export async function listNotes(db: Db, f: Filters = {}, limit = 200): Promise<NoteSummary[]> {
+  const { data, error } = await notesQuery(db, f).limit(limit);
   if (error) throw error;
   return (data as NoteRow[]).map(toSummary);
+}
+
+export const NOTES_PAGE_SIZE = 50;
+
+/** Ronde 4 (V3): one page of the notes list plus the total, so no note is ever out of reach. */
+export async function listNotesPage(db: Db, f: Filters, page: number): Promise<{ notes: NoteSummary[]; total: number; page: number; pages: number }> {
+  const total = await countNotes(db, f);
+  const pages = Math.max(1, Math.ceil(total / NOTES_PAGE_SIZE));
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  const from = (p - 1) * NOTES_PAGE_SIZE;
+  const { data, error } = await notesQuery(db, f).range(from, from + NOTES_PAGE_SIZE - 1);
+  if (error) throw error;
+  return { notes: (data as NoteRow[]).map(toSummary), total, page: p, pages };
+}
+
+/** Ronde 4 (V4): an exact count in the database, not a count of a capped list. */
+export async function countNotes(db: Db, f: Filters = {}): Promise<number> {
+  const { count, error } = await notesQuery(db, f, true);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 type SermonRow = {
@@ -99,6 +127,43 @@ export async function getNote(db: Db, id: string): Promise<Note | null> {
       ? { speaker: sd.speaker?.name ?? null, organization: sd.organization?.name ?? null, series: sd.series?.name ?? null, serviceType: sd.service_type }
       : EMPTY_SERMON,
   };
+}
+
+/** Ronde 4 (A3): concepts written in the last `days` days, oldest first, and how many there are. */
+export async function recentDrafts(db: Db, days = 14, limit = 5) {
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
+  const { data, count, error } = await db
+    .from("notes")
+    .select("id, title, note_type, created_at", { count: "exact" })
+    .eq("status", "concept")
+    .is("deleted_at", null)
+    .is("archived_at", null)
+    .gte("created_at", since)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return {
+    total: count ?? 0,
+    drafts: (data ?? []).map((r) => ({ id: r.id as string, title: r.title as string, noteType: r.note_type as NoteType, createdAt: r.created_at as string })),
+  };
+}
+
+/** Ronde 4 (A1): the sermon details of the most recent sermon note, to start the next one with. */
+export async function getLastSermon(db: Db): Promise<SermonDetails | null> {
+  const { data: last, error } = await db
+    .from("notes")
+    .select("id")
+    .eq("note_type", "preek")
+    .is("deleted_at", null)
+    .order("event_date", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!last) return null;
+  const { data } = await db.from("sermon_details").select(SERMON_COLUMNS).eq("note_id", last.id).maybeSingle();
+  const sd = data as unknown as SermonRow | null;
+  return sd ? { speaker: sd.speaker?.name ?? null, organization: sd.organization?.name ?? null, series: sd.series?.name ?? null, serviceType: sd.service_type } : null;
 }
 
 /** Names used before, offered as suggestions in the sermon fields. */
@@ -370,7 +435,7 @@ export type NoteHit = {
 };
 export type VerseHit = { bookCode: string; bookName: string; chapter: number; verse: number; snippet: string };
 
-export async function searchNotes(db: Db, query: string, f: SearchFilters = {}): Promise<NoteHit[]> {
+export async function searchNotes(db: Db, query: string, f: SearchFilters = {}, limit = 50): Promise<NoteHit[]> {
   const { data, error } = await db.rpc("search_notes", {
     p_query: query,
     p_type: f.type ?? null,
@@ -380,7 +445,7 @@ export async function searchNotes(db: Db, query: string, f: SearchFilters = {}):
     p_book: f.book ?? null,
     p_speaker: f.speaker ?? null,
     p_archived: f.archived ?? false,
-    p_limit: 50,
+    p_limit: limit,
   });
   if (error) throw error;
   return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
@@ -412,3 +477,45 @@ export async function searchBible(db: Db, translation: string, query: string): P
 }
 
 export type { PMNode };
+
+// Ronde 4 (B4): what you wanted to apply, with its status and look back --------------------------
+export type ApplicationItem = {
+  noteId: string;
+  blockId: string;
+  text: string;
+  noteTitle: string;
+  date: string;
+  status: "open" | "gedaan" | "losgelaten";
+  reflection: string;
+};
+
+export async function listApplications(db: Db): Promise<ApplicationItem[]> {
+  const { data: heads, error } = await db.from("note_blocks").select("note_id").eq("block_type", "heading").ilike("plain_text", "%toepassing%").limit(500);
+  if (error) throw error;
+  const ids = [...new Set((heads ?? []).map((h) => h.note_id as string))];
+  if (ids.length === 0) return [];
+  const [blocks, notes, reviews] = await Promise.all([
+    db.from("note_blocks").select("note_id, block_id, block_type, plain_text, position").in("note_id", ids).order("position").limit(5000),
+    db.from("notes").select("id, title, event_date, created_at").in("id", ids).is("deleted_at", null),
+    db.from("application_reviews").select("note_id, block_id, status, reflection").in("note_id", ids),
+  ]);
+  if (blocks.error) throw blocks.error;
+  if (notes.error) throw notes.error;
+  if (reviews.error) throw reviews.error;
+  const meta = new Map((notes.data ?? []).map((n) => [n.id as string, n]));
+  const review = new Map((reviews.data ?? []).map((r) => [`${r.note_id}:${r.block_id}`, r]));
+  return applicationsFromBlocks((blocks.data ?? []) as BlockRow[])
+    .filter((a) => meta.has(a.noteId))
+    .map((a) => {
+      const n = meta.get(a.noteId)!;
+      const r = review.get(`${a.noteId}:${a.blockId}`);
+      return {
+        ...a,
+        noteTitle: (n.title as string) || "Naamloze notitie",
+        date: (n.event_date as string | null) ?? (n.created_at as string).slice(0, 10),
+        status: (r?.status as ApplicationItem["status"]) ?? "open",
+        reflection: (r?.reflection as string) ?? "",
+      };
+    })
+    .sort((x, y) => y.date.localeCompare(x.date));
+}

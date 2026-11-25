@@ -52,6 +52,8 @@ export type ExportData = {
   questionPassages?: unknown[];
   /** Sprint 9 (BK-013) */
   highlights?: unknown[];
+  /** Ronde 4 (ADR-020): read verses, canonical numbering as "BOOK.chapter.verse" (e.g. "JHN.3.16") */
+  readVerses?: string[];
 };
 
 export function linksOf(doc: ExportNote["document"]): ExportNote["passageLinks"] {
